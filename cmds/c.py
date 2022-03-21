@@ -1,28 +1,22 @@
 """
 Jump to context
 
-Last Updated: February 23, 2022
+Last Updated: Version 0.0.1
 """
 
 import subprocess
-import os
-import csv
-import time
 from datetime import datetime
-from pathlib import Path
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
-        self.aria_path = args[0]
+    def __init__(self):
+        pass
 
-    def execute(self, str_in, refs):
-        ConM = refs[0]
-
+    def execute(self, str_in, managers):
         target_names = str_in[2:].split(" ")
 
-        context_tracker = ConM.context_tracker
-        current_context = ConM.current_context
+        context_tracker = managers["context"].context_tracker
+        current_context = managers["context"].current_context
 
         now = datetime.now()
         current_time = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()

@@ -1,18 +1,18 @@
 """
 Translate
 
-Last Updated: March 8, 2021
+Last Updated: Version 0.0.1
 """
 
-import subprocess
 import webbrowser
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
-        print("Opening translate...")
+    def __init__(self):
+        pass
 
-    def execute(self, str_in, context):
+    def execute(self, str_in, managers):
+        print("Opening translate...")
         url = "https://translate.google.com/?sl=auto&tl=en&op=translate&text="
         query = str_in[10:]
 

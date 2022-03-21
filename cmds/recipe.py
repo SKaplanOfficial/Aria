@@ -1,18 +1,18 @@
 """
 Recipe
 
-Last Updated: March 8, 2021
+Last Updated: Version 0.0.1
 """
 
-import subprocess
 import webbrowser
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
-        print("Opening recipe...")
+    def __init__(self):
+        pass
 
-    def execute(self, str_in, context):
+    def execute(self, str_in, managers):
+        print("Opening recipe...")
         url = "https://www.allrecipes.com/search/results/?search="
         query = str_in[7:]
 

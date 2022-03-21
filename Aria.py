@@ -1,127 +1,145 @@
 """
-Aria
+Aria - A modular virtual assistant for the crazy ones.
 
-Last Updated: March 8, 2021
+Version 0.0.1
 """
 
-import importlib
-from multiprocessing.connection import wait
-import subprocess
-import os
-from sys import stdin
-import cmds
 import re
 import threading
 import time
-import io
-import sys
-from CommandManager import CommandManager
-from ContextManager import ContextManager
-from TrackingManager import TrackingManager
+import argparse
+from Managers import ConfigManager
+from Managers import DocumentManager
+from Managers import CommandManager
+from Managers import ContextManager
+from tracking_tools.TrackingManager import TrackingManager
 
-# Relative to initial start directory (User root)
-aria_path = "/Users/Steven/Documents/2020/Python/Aria"
+# Set up commandline argument parsing
+arg_parser = argparse.ArgumentParser(description="A virtual assistant.")
+arg_parser.add_argument("--cmd", type = str, help = "A command to be run when Aria starts.")
+arg_parser.add_argument("--close", action = "store_true", help = "Whether Aria should close after running a command provided via --cmd.")
+arg_parser.add_argument("--debug", action="store_true", help = "Enable debug features.")
+args = arg_parser.parse_args()
 
-# Set up trackers
-TrackM = TrackingManager(aria_path)
-context_tracker = TrackM.init_tracker("context")
+# Set up subsystem managers
+managers = {}
 
-# Set up other subsystem managers
-CM = CommandManager(aria_path)
-ConM = ContextManager(aria_path, context_tracker)
-looping = True
+ConfigManager = ConfigManager(debug = args.debug)
+config = ConfigManager.get_config()
+managers["config"] = ConfigManager
+
+TrackingManager = TrackingManager(managers["config"].get("aria_path")+"/data/")
+managers["tracking"] = TrackingManager
+
+DocumentManager = DocumentManager(managers, debug = args.debug)
+managers["docs"] = DocumentManager
+
+CommandManager = CommandManager(managers, debug = args.debug)
+commands = CommandManager.get_all_commands()
+managers["command"] = CommandManager
+
+ContextManager = ContextManager(managers, debug = args.debug)
+managers["context"] = ContextManager
 
 
-def get_command_name(str_in):
-    """Attempts to identify the command within a multiparameter string.
-    Use + within a command string to avoid looping through each command file.
+def parse_input(str_in, managers):
+    """
+    Compares an input string against each intent checker, then runs the best fit command.
 
-    Arguments:
-        str_in {String} -- The input command string.
+    Parameters:
+        str_in : str - A command (and any arguments) to be run.
+        managers : [Manager] - A list of references to all manager objects.
 
     Returns:
-        String -- The command name.
+        None
     """
-    str_condensed = str_in.replace(" ", "")
-
-    fast_track = str_in.split("+", 1)
-    if (len(fast_track) > 1):
-        print(fast_track[0])
-        return fast_track[0]
-
-    files = os.listdir(path=aria_path+"/cmds")
-    for file in files:
-        filename = file[:-3]
-        if str_condensed.startswith(filename):
-            return filename
-
-
-def exit_term():
-    """Closes the active terminal tab.
-    """
-    scpt = 'tell application "Terminal" to close (get window 1) '.encode()
-    args = []
-    subprocess.call(['osascript', '-e', scpt])
-
-
-def parse_input(str_in, context):
     global looping
-    #try:
+    
+    cmd_name = None
+
+    # Check meta-commands
     if str_in == "q":
-        exit_term()
-    elif str_in == "drop to term":
-        looping = False
+        exit()
     elif re.match("(make command )(\w*)( from )(\w*)", str_in) or re.match("(make )(\w*)( from command )(\w*)", str_in):
         # Make new command based on another command
-        CM.cmd_from_template(str_in)
-    elif str_in.startswith("report"):
-        # TODO: Have commands register reporters, requires commands be imported on start
-        cmd_name = get_command_name(str_in[7:].lower())
-        if (cmd_name == "" or cmd_name is None):
-            print("Reporter not found (Cannot find base command).")
-        else:
-            # Attempt to run reporter
-            cmd_module = importlib.import_module("cmds."+cmd_name)
-            plugin = cmd_module.Command(aria_path)
-            make_report = getattr(plugin, 'report', None)
-            if callable(make_report):
-                plugin.report(TrackM)
-            else:
-                print("Reporter not found (Missing report method).")
+        managers["command"].cmd_from_template(str_in)
+    elif str_in.startswith("enable plugin "):
+        cmd_name = str_in[14:]
+        managers["command"].enable_command_plugin(cmd_name)
+    elif str_in.startswith("disable plugin "):
+        cmd_name = str_in[15:]
+        managers["command"].disable_command_plugin(cmd_name)
+    elif str_in.startswith("report "):
+        cmd_name = managers["command"].get_command_name(str_in[7:].lower())
+        managers["command"].cmd_method(cmd_name, "report")
+    elif str_in.startswith("help "):
+        cmd_name = managers["command"].get_command_name(str_in[5:].lower())
+        managers["command"].cmd_method(cmd_name, "help")
     else:
-        cmd_name = get_command_name(str_in.lower())
+        # Run invocation checkers for each command plugin
+        for (cmd, invocation_checker) in managers["command"].invocations.items():
+            if invocation_checker(str_in):
+                cmd_name = cmd
 
-        if (cmd_name == "" or cmd_name is None):
-            print("Command not found.")
+        # If no invocation method has been found, try finding a matching command filename
+        if cmd_name == "" or cmd_name is None:
+            first_word = str_in.split(" ")[0]
+            cmd_name = managers["command"].get_command_name(first_word.lower())
+
+        # If no matching filename is found, see if any plugin wants to handle the input
+        handler = None
+        max_handler_score = 0
+        if cmd_name == "" or cmd_name is None:
+            for (cmd, handler_checker) in managers["command"].handler_checkers.items():
+                handler_score = handler_checker(str_in, managers)
+                if handler_score > max_handler_score:
+                    max_handler_score = handler_score
+                    handler = managers["command"].handlers[cmd]
+        
+        if handler != None:
+            # If a plugin has a handler for this input, run the handler
+            handler(str_in, managers, max_handler_score)
         else:
-            # Run the command
-            cmd_module = importlib.import_module("cmds."+cmd_name)
-            plugin = cmd_module.Command(aria_path)
-            data = plugin.execute(str_in, context)
+            # If there is still no command found, and the input has not been handled, report reason why
+            if cmd_name == "" or cmd_name is None or cmd_name not in managers["command"].plugins.keys():
+                print("Command not found.")
+            elif cmd_name in managers["config"].get("plugins").keys() and managers["config"].get("plugins")[cmd_name]["enabled"] == False:
+                print("Command not found (the parent plugin has been disabled).")
 
-            if (type(data) is str and data.startswith("run ")):
-                # Run command from command feedback
-                run_inputs(data[4:], context)
-    # except Exception as e:
-    #     print("An unknown error occurred:\n"+str(e))
+            # Otherwise, we found a command -- run it!
+            else:
+                plugin = managers["command"].plugins[cmd_name]
+                data = plugin.execute(str_in, managers)
 
+                if (type(data) is str and data.startswith("run ")):
+                    # Run command from command feedback
+                    run_inputs(data[4:], managers)
 
 def aria_loop():
-    global stdin_count, msg_channel
+    """Runs the main command input loop."""
     while looping:
         str_in = input()
-        if stdin_count == 0:
-            if str_in == "context":
-                print("-"*25, "\n", "Current Context: ", ConM.current_context, "\n\n")
-                print("Context History: ", ConM.current_context, "\n", "-"*25, "\n\n")
-            else:
-                refs = [ConM, TrackM]
-                run_inputs(str_in, refs)
-        elif stdin_count != 0:
-            msg_channel = str_in
+
+        if str_in == "context":
+            print("-"*25, "\n", "Current Context: ", managers["context"].current_context, "\n\n")
+            print("Context History: ", managers["context"].current_context, "\n", "-"*25, "\n\n")
+        else:
+            run_inputs(str_in, managers)
+
+        managers["context"].previous_input = str_in
 
 
-def run_inputs(str_in, context):
+def run_inputs(str_in, managers):
+    """
+    Runs inputs supplied as a string.
+    
+    Parameters:
+        str_in : str - One or more commands to be run, separated by " && ".
+        managers : [Manager] - A list of references to all manager objects.
+
+    Returns:
+        None
+    """
     current_str = str_in
     remaining = str_in
     while remaining:
@@ -131,105 +149,36 @@ def run_inputs(str_in, context):
         else:
             current_str = remaining
             remaining = ""
-        parse_input(current_str, context)
+        parse_input(current_str, managers)
 
 
 def context_loop():
+    """Updates the context tracker once a second."""
     while looping:
-        ConM.update_context()
+        ContextManager.update_context()
         time.sleep(1)
 
-def predictor_loop():
-    pass
-    # global stdin_count, msg_channel
-    # waitlist = []
-    # waitlist_timer = 100000000
-
-    # while looping:
-    #     if waitlist_timer == 0 and len(waitlist) > 0:
-    #         print("Removed ", waitlist.pop(0), " from the waitlist.")
-    #         waitlist_timer = 100000000
-    #     elif len(waitlist) > 0:
-    #         waitlist_timer -= 1
-
-        # if '/Applications/Visual Studio Code.app' in ConM.current_context["apps"] and '/Applications/GitHub Desktop.app' in ConM.current_context["apps"] and 'x 497' not in waitlist:
-        #     if stdin_count == 0:
-        #         print("[Based on you opening VSCode and GitHub Desktop] Do you want to launch the 497 context?")
-        #         stdin_count += 1
-            
-        #     if stdin_count == 1 and msg_channel in ["Yes", "yes", "Y", "y"]:
-        #         print("Launching 497 context...")
-        #         context = [ConM.current_context, ConM.get_previous_context()]
-        #         run_inputs("x 497", context)
-
-        #     if stdin_count == 1 and msg_channel != "":
-        #         waitlist.append('x 497')
-        #         msg_channel = ""
-        #         stdin_count -= 1
-        # if (ConM.current_app == '/System/Applications/Calendar.app' and 'site https://calendar.google.com' not in waitlist):
-        #     if stdin_count == 0:
-        #         print("[Based on you opening Calendar] Do you want to open Google Calendar?")
-        #         stdin_count += 1
-
-        #     if stdin_count == 1 and msg_channel in ["Yes", "yes", "Y", "y"]:
-        #         print("Opening Google Calendar...")
-        #         context = [ConM.current_context, ConM.get_previous_context()]
-        #         run_inputs("site https://calendar.google.com", context)
-
-        #     if stdin_count == 1 and msg_channel != "":
-        #         waitlist.append('site https://calendar.google.com')
-        #         msg_channel = ""
-        #         stdin_count -= 1
-        # if (ConM.current_app == '/Applications/Visual Studio Code.app' and '/Applications/Safari.app' not in waitlist):
-        #     if stdin_count == 0:
-        #         print("[Based on you opening VSCode] Do you want to open Safari?")
-        #         stdin_count += 1
-
-        #     if stdin_count == 1 and msg_channel in ["Yes", "yes", "Y", "y"]:
-        #         print("Opening Safari...")
-        #         cmd_module = importlib.import_module("cmds.app")
-        #         plugin = cmd_module.Command(aria_path)
-        #         context = [ConM.current_context, ConM.get_previous_context()]
-        #         data = plugin.execute("app Safari -g", context)
-            
-        #     if stdin_count == 1 and msg_channel != "":
-        #         waitlist.append('/Applications/Safari.app')
-        #         print("Added ", '/Applications/Safari.app', " to the waitlist")
-        #         msg_channel = ""
-        #         stdin_count += 1
-        # if (ConM.current_app == '/Applications/Visual Studio Code.app' and '/Applications/Terminal.app' not in waitlist):
-        #     if stdin_count == 2:
-        #         print("[Based on you opening VSCode] Do you want to open Terminal?")
-        #         stdin_count += 1
-
-        #     if stdin_count == 3 and msg_channel in ["Yes", "yes", "Y", "y"]:
-        #         print("Opening Terminal")
-        #         cmd_module = importlib.import_module("cmds.app")
-        #         plugin = cmd_module.Command(aria_path)
-        #         context = [ConM.current_context, ConM.get_previous_context()]
-        #         data = plugin.execute("app Terminal -n", context)
-            
-        #     if stdin_count == 3 and msg_channel != "":
-        #         waitlist.append('/Applications/Terminal.app')
-        #         msg_channel = ""
-        #         stdin_count -= 3
-
-stdin_count = 0
-msg_channel = ""
 lock = threading.Lock()  # A lock for the shared resource
-
-context_thread = threading.Thread(
-    target=context_loop, name="Context", daemon=True)
+context_thread = threading.Thread(target=context_loop, name="Context", daemon=True)
 aria_thread = threading.Thread(target=aria_loop, name="Aria", daemon=True)
-predictor_thread = threading.Thread(
-    target=predictor_loop, name="Predictor", daemon=True)
 
 
+looping = True
 if __name__ == '__main__':
-    print("Hello.")
-    context_thread.start()
-    aria_thread.start()
-    predictor_thread.start()
+    if args.cmd is not None:
+        # Run a command supplied via commandline args
+        refs = [ContextManager, TrackingManager]
+        run_inputs(args.cmd, refs)
 
-    while looping:
-        time.sleep(1)
+        if args.close:
+            # Close after command execution
+            exit()
+    else:
+        # Run Aria in interactive mode
+        print("Hello,", managers["config"].get("user_name") + "!")
+
+        context_thread.start()
+        aria_thread.start()
+
+        while looping:
+            time.sleep(1)

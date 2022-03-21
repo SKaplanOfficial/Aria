@@ -1,17 +1,17 @@
 """
 Clear
 
-Last Updated: March 8, 2021
+Last Updated: Version 0.0.1
 """
 
 import subprocess
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         pass
 
-    def execute(self, str_in, context):
+    def execute(self, str_in, managers):
         cmd = "clear"
         subprocess.call([cmd])
         print("Cleared.")

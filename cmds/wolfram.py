@@ -1,18 +1,18 @@
 """
 Wolfram
 
-Last Updated: March 8, 2021
+Last Updated: Version 0.0.1
 """
 
-import subprocess
 import webbrowser
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
-        print("Opening wolfram...")
+    def __init__(self):
+        pass
 
-    def execute(self, str_in, context):
+    def execute(self, str_in, managers):
+        print("Opening wolfram...")
         url = "https://www.wolframalpha.com/input?i="
         query = str_in[8:]
 

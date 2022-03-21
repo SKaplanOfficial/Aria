@@ -1,18 +1,17 @@
 """
 App
 
-Last Updated: March 8, 2021
+Last Updated: Version 0.0.1
 """
 
 import subprocess
-import webbrowser
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         pass
 
-    def execute(self, str_in, context):
+    def execute(self, str_in, managers):
         background = False
         open_new = False
         command = ["open", "-a"]

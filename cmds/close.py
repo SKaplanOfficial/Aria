@@ -1,25 +1,48 @@
 """
 Close
 
-Last Updated: March 8, 2021
+Last Updated: Version 0.0.1
 """
 
+import applescript
 import subprocess
-import webbrowser
 
 
 class Command:
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         pass
 
-    def execute(self, str_in, context):
-        command = ['pkill', '-ix']
-        query = str_in[6:]
+    def execute(self, str_in, managers):
+        optional = ""
 
-        target = query
-        command.insert(len(command), target)
+        if str_in.endswith(" tab") or str_in.endswith( "window"):
+            if str_in.endswith(" tab"):
+                if "Safari" in managers["context"].current_app:
+                    optional = "current tab of the "
 
-        subprocess.call(command)
+                str_in = str_in[:str_in.index(" tab")]
+
+            elif str_in.endswith( "window"):
+                str_in = str_in[:str_in.index(" window")]
+
+            scpt = applescript.AppleScript('''try
+                tell application "''' + managers["context"].current_app + '''"
+                    close ''' + optional + '''front window
+                end tell
+                return tabURL
+            on error
+                -- blah
+            end try
+            ''')
+            scpt.run()
+
+            if managers["context"].current_app != managers["context"].previous_apps[-1]:
+                managers["context"].previous_apps.append(managers["context"].current_app)
+        else:
+            query = str_in[6:]
+            command = ['pkill', '-ix']
+            command.insert(len(command), query)
+            subprocess.call(command)
 
     def get_template(self, new_cmd_name):
         print("Enter base command and args: ")

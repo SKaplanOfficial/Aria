@@ -1,115 +1,97 @@
 """
-Jump
+x
 
-Last Updated: February 2, 2022
+Last Updated: Version 0.0.1
 """
 
-import os
-import csv
-import datetime
-from pathlib import Path
-
+from datetime import datetime
 
 class Command:
-    def __init__(self, *args, **kwargs):
-        self.aria_path = args[0]
+    def __init__(self, ):
+        self.force_context = False
+        self.exec_tracker = None
 
-    def execute(self, str_in, context):
-        (target, target_name) = self.parse_target(str_in)
+    def execute(self, str_in, managers):
+        item_structure = {
+            "name" : str,
+            "time" : float,
+            "frequency" : int,
+            "targets" : list,
+        }
 
-        # Get current hour
-        target_time = datetime.datetime.now().hour
+        self.exec_tracker = managers["tracking"].tracker(
+            "exec",
+            item_structure = item_structure,
+            data_source = self.parse_target,
+            merge_method = self.increment_freq
+        )
 
-        # Data file path
-        folder_path = self.aria_path+"/data/"
-        data_file_name = "exec_tracking.csv"
-        file_path = folder_path + "/" + data_file_name
+        self.exec_tracker.load_data()
 
-        # Create jump-tracking csv if it's missing
-        if not os.path.isfile(file_path):
-            if not target:
-                print(
-                    "Since this is your first time jumping, please provide a full command.")
-                return
+        targets = str_in[2:].split(" ")
+        data = self.parse_target(str_in)
 
-            self.create_csv(
-                folder_path,
-                file_path,
-                [target_name, target, target_time, 0])
+        candidates = self.exec_tracker.get_items_containing("targets", targets)
+        candidates += self.exec_tracker.get_items_containing("name", data[0])
 
-        # Compare target against csv
-        best_candidate = (None, None)  # path, index
-        rows = []
-        with open(file_path, 'r') as data_file:
-            csv_reader = csv.reader(data_file, delimiter=",")
-            best_score = 0
-            for index, row in enumerate(csv_reader):
-                rows.append(row)
-                # Check if target name is a substring of the row folder name
-                if target_name.lower() in row[0].lower():
-                    time_difference = max(target_time, float(
-                        row[2])) - min(target_time, float(row[2]))
-                    if time_difference < 0:
-                        time_difference = 24 + time_difference
+        target = self.exec_tracker.new_item(data)
+        best_candidate = self.exec_tracker.get_best_match(target, candidates, 0, compare_method = self.compare_method)
 
-                    if time_difference == 0:
-                        time_difference = 0.01
-
-                    score = float(row[3]) / time_difference
-
-                    # Award bonus score if target time is + or - 3 hours of row time
-                    if time_difference < 4:
-                        score *= 1.5
-
-                    if score > best_score:
-                        # Set row folder path as current best candidate
-                        best_candidate = (row[1], index)
-                        best_score = score
-        # New entry
-        if best_candidate == (None, None):
-            best_candidate = (target, -1)
-            rows.append([target_name, target, target_time, 1])
+        if best_candidate == None:
+            best_candidate = target
+            print("New exec pathway:", best_candidate.data["name"], "->", best_candidate.data["targets"])
+            self.exec_tracker.add_item(best_candidate)
         else:
-            current_best_time = float(rows[best_candidate[1]][2])
-            current_freq = float(rows[best_candidate[1]][3])
-            new_best_time = ((current_best_time * current_freq) +
-                             target_time) / (current_freq + 1)
-            rows[best_candidate[1]][2] = new_best_time
-            rows[best_candidate[1]][3] = current_freq + 1
+            print("Existing exec pathway:", best_candidate.data["name"], "->", best_candidate.data["targets"])
+        
+        self.exec_tracker.save_data()
 
-        # Update csv
-        with open(file_path, 'w') as data_file:
-            for row in rows:
-                csv_writer = csv.writer(
-                    data_file, delimiter=",", quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-                csv_writer.writerow(row)
+        if self.force_context:
+            managers["context"].blank_context()
 
-        return "run " + best_candidate[0]
+        return_cmd = "run"
+        return return_cmd + " " + best_candidate.data["targets"].replace("|", " && ")
 
-    def parse_target(self, str_in):
-        # Get the actual name of the target folder
-        target = str_in[2:]
-        target_name = target
-        if " &&& " in target:
-            target = target.replace(" &&& ", " && ")
-        if " --name=" in target:
-            target_name = target[target.index("--name=")+7:]
-            target = target[0:target.index(" --name=")]
-        if " " in target_name:
-            target_name = target_name[target_name.rfind(" ")+1:]
-        return (target, target_name)
+    def increment_freq(self, item_1, item_2):
+        item_1.data["frequency"] += 1
+        return item_1
 
-    def create_csv(self, folder_path, file_path, initial_row_content):
-        Path(folder_path).mkdir(parents=True, exist_ok=True)
-        with open(file_path, 'a') as new_csv:
-            csv_writer = csv.writer(
-                new_csv, delimiter=",",
-                quotechar='"',
-                quoting=csv.QUOTE_NONNUMERIC)
-            csv_writer.writerow(initial_row_content)
+    def compare_method(self, item_1, item_2):
+        if item_1.data["name"] == item_2.data["name"]:
+            return 0
+        return self.exec_tracker.default_compare_method(item_1, item_2)
+
+    def parse_target(self, target):
+        cmd_target = target[2:]
+
+        if " -fc" in cmd_target:
+            self.force_context = True
+            cmd_target = cmd_target.replace(" -fc", "")
+
+        # Name
+        name = cmd_target
+        if " " in name:
+            name = name.split(" ")[0]
+        if " --name=" in cmd_target:
+            name = cmd_target[cmd_target.index("--name=")+7:]
+
+        # Time
+        now = datetime.now()
+        current_time = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
+
+        # Targets
+        targets_new = [cmd_target]
+        if " & " in cmd_target:
+            targets_new = cmd_target.split(" & ")
+        if " --name=" in cmd_target:
+            if " & " in cmd_target:
+                targets_new = cmd_target.replace(" --name="+name, "").split(" & ")
+            else:
+                targets_new = [cmd_target.replace(" --name="+name, "")]
+        
+        return [name, current_time, 1, targets_new]
 
     def get_template(self, new_cmd_name):
-        # TODO: Fix this or remove it
         print("Enter base command and args: ")
         cmd_new = input()
 
@@ -117,11 +99,12 @@ class Command:
 
         template = {
             'command': str(cmd_new.split(" ")),
-            'query': 'str_in['+str(query_length)+':]',
-            'data_file_name': "",
+            'targets': 'str_in['+str(query_length)+':]',
+            'data_file_name': "'"+str(cmd_new.split(" ")[0])+"'",
+            'return_cmd': "'"+str(cmd_new.split(" ")[1])+"'"
         }
 
         return template
 
     def get_help(self):
-        return "x [cmd 1] &&& [cmd 2] &&& ... --name=[name]"
+        return "x [cmd 1] & [cmd 2] & ... --name=[name] -fc"
