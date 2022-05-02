@@ -8,3 +8,5 @@ docs/
 data/
 aria_config.json
 *.pkg
+
+sphinx-docs/build/*
