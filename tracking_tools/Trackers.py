@@ -42,8 +42,8 @@ class TrackerItem:
         pass
 
 class Tracker:
-    def __init__(self, name, data_file_path = None, item_structure = {},
-                 data_source = None, allow_duplicate_entries = False,
+    def __init__(self, name = None, data_file_path = None, item_structure = {},
+                 data_source = None, allow_duplicate_items = False,
                  allow_near_duplicates = False, compare_method = None,
                  merge_method = None, use_csv = False):
         self.name = name
@@ -60,7 +60,7 @@ class Tracker:
             self.coltypes.append(value)
 
         self.data_source = data_source
-        self.allow_duplicate_entries = allow_duplicate_entries
+        self.allow_duplicate_items = allow_duplicate_items
         self.allow_near_duplicates = allow_near_duplicates
         self.compare_method = compare_method
         self.merge_method = merge_method
@@ -80,7 +80,7 @@ class Tracker:
 
         if not self.allow_near_duplicates:
                 self.remove_near_duplicates(compare_method = self.compare_method, merge_method = self.merge_method)
-        elif not self.allow_duplicate_entries:
+        elif not self.allow_duplicate_items:
             self.remove_duplicates(merge_method = self.merge_method)
 
         if self.data_file_path is not None:
@@ -154,7 +154,7 @@ class Tracker:
             initial_item = self.new_empty_item()
             self.create_csv(initial_item.as_list())
 
-        # Prepare entries for export
+        # Prepare items for export
         items_to_export = []
         for item in self.items:
             # Convert python list object to string list expression
@@ -174,7 +174,7 @@ class Tracker:
             initial_item = self.new_empty_item()
             self.create_csv(initial_item.as_list())
 
-        # Extract entries from csv
+        # Extract items from csv
         items = []
         with open(self.data_file_path, 'r') as data_file:
             csv_reader = csv.reader(data_file, delimiter=",")
@@ -193,7 +193,7 @@ class Tracker:
                 new_item = self.new_item(row)
                 items.append(new_item)
 
-        # Add old entries to current items list
+        # Add old items to current items list
         if append:
             self.items = self.items + items
         else:
@@ -208,7 +208,6 @@ class Tracker:
                     if merge_values or merge_method is not None:
                         if callable(merge_method):
                             self.items[index_1] = merge_method(item_1, item_2)
-                            print("whai")
                         else:
                             if callable(self.merge_method):
                                 self.items[index_1] = self.merge_method(item_1, item_2)
@@ -243,6 +242,20 @@ class Tracker:
                             else:
                                 self.items[index_1] = self.default_merge_method(item_1, item_2)
                     items_to_remove.append(index_2+index_1+1)
+
+        for item_index in items_to_remove:
+            self.items.pop(item_index)
+
+    def remove_empty_items(self):
+        items_to_remove = []
+        for index_1, item_1 in enumerate(self.items):
+            all_zero = True
+            for column in self.cols:
+                if item_1.data[column] != "0":
+                    all_zero = False
+
+            if all_zero:
+                items_to_remove.append(index_1)
 
         for item_index in items_to_remove:
             self.items.pop(item_index)
@@ -297,7 +310,7 @@ class Tracker:
                         num_diff += 1
                         num_consec = 0
 
-                sim_diff = max(0, num_eq + max_consec * 2 - num_diff - len_diff * 2)
+                sim_diff = max(0, num_diff * 3 - num_eq**2 - max_consec**2 + len_diff * 2)
                 diff += 16 * sim_diff / math.sqrt((sim_diff + 2) * (sim_diff + 2) + 1) # Max 16
 
 
@@ -332,13 +345,14 @@ class Tracker:
             all_targets_present = True
             for value in target_values:
                 missing = True
+
                 if value in item.data[column]:
                     # TODO: Make this check use some approximation logic, e.g. to accept minceraft instead of minecraft
                     missing = False
 
-                if isinstance(item.data[column],list):
+                if isinstance(item.data[column], list):
                     for word in item.data[column]:
-                        if value in word:
+                        if value.lower() in word.lower():
                             missing = False
 
                 if missing:
@@ -349,29 +363,45 @@ class Tracker:
 
         return candidates
 
-    def get_best_match(self, target_entry, candidates = None, threshold = 0, compare_method = None, ignored_cols = []):
-        """ Get the item with the smallest delta from the target entry """
+    def get_best_match(self, target_item, candidates = None, threshold = 0, compare_method = None, ignored_cols = []):
+        """ Get the item with the smallest delta from the target item """
         
         if candidates == None:
-            candidates = self.entries
+            candidates = self.items
 
         best_score = threshold
         best_candidate = None
         for candidate in candidates:
             for column in ignored_cols:
-                target_entry.data[column] = candidate.data[column]
+                target_item.data[column] = candidate.data[column]
 
             score = 0
             if compare_method is not None and callable(compare_method):
-                score = 1 - compare_method(target_entry, candidate)
+                score = 1 - compare_method(target_item, candidate)
             else:
-                score = 1 - self.default_compare_method(target_entry, candidate)
+                score = 1 - self.default_compare_method(target_item, candidate)
 
             if score > best_score:
                 best_score = score
                 best_candidate = candidate
 
         return best_candidate
+    
+    def get_max_of_col(self, column):
+        """ Gets the maximum value of the target column across all tracked items. """
+        max = 0
+        for item in self.items:
+            if item.data[column] > max:
+                max = item.data[column]
+        return max
+
+    def get_min_of_col(self, column):
+        """ Gets the minimum value of the target column across all tracked items. """
+        min = math.inf
+        for item in self.items:
+            if item.data[column] < min:
+                min = item.data[column]
+        return min
 
 class SimpleFrequencyTracker(Tracker):
     def __init__(self, name, data_file_path = None, item_structure = {},

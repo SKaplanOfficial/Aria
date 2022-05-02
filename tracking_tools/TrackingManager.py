@@ -1,5 +1,6 @@
 from .Trackers import Tracker
 from pathlib import Path
+from datetime import datetime
 
 class TrackingManager:
     def __init__(self, data_folder_path):
@@ -24,12 +25,18 @@ class TrackingManager:
         new_tracker = Tracker(title, data_file_path, item_structure)
         return new_tracker
 
-    def tracker(self, name, data_file_path = None, item_structure = {},
+    def tracker(self, name = None, data_file_path = None, item_structure = {},
                  data_source = None, allow_duplicate_entries = False,
                  allow_near_duplicates = False, compare_method = None,
                  merge_method = None, use_csv = False):
-        data_file_name = name+"_tracking.csv"
-        data_file_path = self.data_folder_path + "/" + data_file_name
+
+        if (name != None or use_csv == True) and data_file_path == None:
+            if name == None:
+                now = datetime.now()
+                current_time = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
+                name = "tracker"+hash(current_time)
+            data_file_name = name+"_tracking.csv"
+            data_file_path = self.data_folder_path + "/" + data_file_name
 
         return Tracker(name, data_file_path, item_structure,
                  data_source, allow_duplicate_entries,
