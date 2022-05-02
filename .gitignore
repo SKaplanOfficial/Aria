@@ -7,3 +7,4 @@
 docs/
 data/
 aria_config.json
+*.pkg
