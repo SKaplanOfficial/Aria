@@ -1,37 +1,83 @@
 """
 App
 
-Last Updated: Version 0.0.1
+Last Updated: Version 0.0.2
 """
 
 import subprocess
 
+from CommandTypes import Command
 
-class Command:
-    def __init__(self):
-        pass
+class OpenApp(Command):
+    info = {
+        "title": "App",
+        "repository": "https://github.com/SKaplanOfficial/Aria",
+        "documentation_link": "https://github.com/SKaplanOfficial/Aria/documentation/",
+        'id': "aria_app",
+        "version": "1.0.0",
+        "description": """
+            This command opens an application from the system Applications folder.
+        """,
+        "requirements": {
+            "aria_open": "1.0.0",
+        },
+        "extensions": {},
+        "purposes": [
+            "open app", "open website"
+        ],
+        "targets": [
+            "calendar", "calculator.app", "https://example.com"
+        ],
+        "keywords": [
+            "aria", "command", "navigation", "shortcut",
+        ],
+        "example_usage": [
+            ("app calendar", "Opens the calendar app."),
+        ],
+        "help": [
+            "A full application name must be provided.",
+        ],
+        "contact_details": {
+            "author": "Stephen Kaplan",
+            "email": "stephen.kaplan@maine.edu",
+            "website": "http://skaplan.io",
+        }
+    }
 
-    def execute(self, str_in, managers):
-        background = False
-        open_new = False
-        command = ["open", "-a"]
-        if " -g" in str_in:
-            background = True
-            str_in = str_in.replace(" -g", "")
-        if " -n" in str_in:
-            open_new = True
-            str_in = str_in.replace(" -n", "")
-        query = str_in[4:]
+    def execute(self, query, origin):
+        target = " ".join(query.split()[1:])
 
-        target = query
-        command.insert(len(command), target)
+        g = n = ""
 
-        if background:
-            command.append('-g')
-        if open_new:
-            command.append('-n')
+        if "-g" in target:
+            g = "-g"
+            target = target.replace(" -g", "")
 
-        subprocess.call(command)
+        if "-n" in query:
+            n = " -n"
+            target = target.replace(" -n", "")
+
+        Command.managers["command"].plugins["aria_open"].execute("open" + g + n + " -a " + target.strip(), 2)
+
+    def get_query_type(self, query):
+        parts = query.split()
+        if parts[0] in ["app"]:
+            return 1000
+        if parts[0] in ["open"]:
+            if parts[1].find("/") != -1:
+                # The target is a path -- leave it for aria_open
+                return 0
+            elif parts[1].find(".") != -1 and not parts[1].endswith(".app"):
+                # The target is a file -- leave it for aria_open
+                return 0
+            elif parts[1].find("://") != -1:
+                # The target is a URL -- leave it for aria_open
+                return 0
+            else:
+                # The target is probably an app -- handle it
+                print("hi")
+                return 20
+        return 0
 
     def get_template(self, new_cmd_name):
         print("Enter base command and args: ")
@@ -41,7 +87,8 @@ class Command:
 
         template = {
             'command': str(cmd_new.split(" ")),
-            'query': 'str_in['+str(query_length)+':]',
         }
 
         return template
+
+command = OpenApp()
