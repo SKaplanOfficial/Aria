@@ -7,8 +7,8 @@ Last Updated: Version 0.0.1
 import re
 from datetime import datetime, timedelta
 
-from CommandTypes import Command
-from AriaUtils import Blah
+from ariautils.command_utils import Command
+from ariautils import command_utils, config_utils, file_utils
 
 class Note(Command):
     info = {
@@ -68,11 +68,6 @@ class Note(Command):
         self.min_session_duration = 3 # Minutes
 
     def execute(self, query, origin):
-
-        blah1 = Blah()
-        blah1.get_wow()
-        return
-
         parts = query.split()
         targets = (" ".join(parts[1:])).split(",")
 
@@ -121,13 +116,13 @@ class Note(Command):
                 filename = "quicknote.txt"
                 log_time = True
 
-            path = Command.managers["config"].get("aria_path") + "/docs/notes/" + filename
+            path = config_utils.get("aria_path") + "/docs/notes/" + filename
 
             if query_type in [193, 291, 293, 297]:
                 # Full path provided
                 path = targets[index]
 
-            Command.managers["docs"].touch(path)
+            file_utils.touch(path)
 
             if log_time == True:
                 if path not in self.sessions:
@@ -139,13 +134,13 @@ class Note(Command):
                         new_session = True
 
             if new_session == True:
-                if not Command.managers["docs"].is_empty(path):
-                    Command.managers["docs"].append(path, "\n\n")
-                Command.managers["docs"].append(path, "-- " + datetime.now().strftime("%-I:%M %p") + " Note Session --\n")
+                if not file_utils.is_empty(path):
+                    file_utils.append(path, "\n\n")
+                file_utils.append(path, "-- " + datetime.now().strftime("%-I:%M %p") + " Note Session --\n")
 
             path = path.replace(" ", "&")
 
-            Command.managers["command"].plugins["aria_terminal"].execute("open -a Textedit " + path, 2)
+            command_utils.plugins["aria_terminal"].execute("open -a Textedit " + path, 2)
 
 
     def invocation(self, query):

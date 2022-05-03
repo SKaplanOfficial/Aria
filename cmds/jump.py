@@ -4,12 +4,12 @@ Jump
 Last Updated: Version 0.0.1
 """
 
-from re import S
 import subprocess
 from datetime import datetime
 
-from CommandTypes import Command
-import os
+from ariautils import io_utils, context_utils
+from ariautils.tracking_utils import TrackingManager
+from ariautils.command_utils import Command
 
 class Jump(Command):
     info = {
@@ -59,7 +59,7 @@ class Jump(Command):
         target_destinations = (" ".join(target_destinations)).split(",")
 
         # Get list of relevant candidates
-        jump_tracker = Command.managers["tracking"].init_tracker("jump")
+        jump_tracker = TrackingManager.init_tracker("jump")
         jump_tracker.load_data()
         candidates = jump_tracker.get_items_containing("targets", target_destinations)
 
@@ -81,7 +81,7 @@ class Jump(Command):
         if completion_status[0] == 0:
             # The jump was entirely successful, update the frequency and time of the item
             if origin in [0, 1]:
-                Command.managers["output"].sprint("Here you go!")
+                io_utils.sprint("Here you go!")
             self._update_jump(best_candidate, current_time)
         elif completion_status[0] == -1 and origin in [0, 1]:
             # Some parts of the jump failed
@@ -152,11 +152,11 @@ class Jump(Command):
     def _report_failures(self, failures):
         """ Reports the destinations that could not be jumped to. """
         if len(failures) > 1:
-            Command.managers["output"].sprint("I was unable to complete jumps to " + str(len(failures)) + " destinations:")
+            io_utils.sprint("I was unable to complete jumps to " + str(len(failures)) + " destinations:")
             for dest in failures:
                 print("\t" + dest)
         else:
-            Command.managers["output"].sprint("I was unable to complete the jump to " + failures[0] + ".")
+            io_utils.sprint("I was unable to complete the jump to " + failures[0] + ".")
 
     def _remove_broken_jump(self, jump_item, jump_tracker):
         """ Removes jump entries that are no longer functional. """
@@ -164,7 +164,7 @@ class Jump(Command):
             print("Found broken jump point, removing.")
         else:
             # Item is the temporary item created when no candidate is found
-            Command.managers["output"].dprint("Removing jump item '" + " ".join(jump_item.data["targets"]) + "'")
+            io_utils.dprint("Removing jump item '" + " ".join(jump_item.data["targets"]) + "'")
         jump_tracker.items.remove(jump_item)
 
     def get_query_type(self, query):
@@ -172,7 +172,7 @@ class Jump(Command):
         if parts[0] in ["j", "goto", "jto"]:
             return 1000
 
-        if "Finder" in Command.managers["context"].current_app:
+        if "Finder" in context_utils.current_app:
             return 1
         return 0
 

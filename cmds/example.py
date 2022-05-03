@@ -4,7 +4,8 @@ Example
 Last Updated: Version 0.0.1
 """
 
-from CommandTypes import Command
+from ariautils.command_utils import Command
+from ariautils import config_utils
 
 class ExampleCommand(Command):
     info = {
@@ -39,10 +40,10 @@ class ExampleCommand(Command):
     def execute(self, query, origin):
         print("Testing...")
 
-        if "test" in Command.managers["config"].get_config().keys():
-            print(Command.managers["config"].get("test"))
+        if "test" in config_utils.get_config().keys():
+            print(config_utils.get("test"))
         else:
-            Command.managers["config"].set("test", 123)
+            config_utils.set("test", 123)
             print("Added config entry.")
 
 # Init object for export

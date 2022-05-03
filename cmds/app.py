@@ -4,9 +4,8 @@ App
 Last Updated: Version 0.0.2
 """
 
-import subprocess
-
-from CommandTypes import Command
+from ariautils.command_utils import Command
+from ariautils import command_utils
 
 class OpenApp(Command):
     info = {
@@ -57,7 +56,7 @@ class OpenApp(Command):
             n = " -n"
             target = target.replace(" -n", "")
 
-        Command.managers["command"].plugins["aria_open"].execute("open" + g + n + " -a " + target.strip(), 2)
+        command_utils.plugins["aria_open"].execute("open" + g + n + " -a " + target.strip(), 2)
 
     def get_query_type(self, query):
         parts = query.split()

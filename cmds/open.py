@@ -4,7 +4,8 @@ App
 Last Updated: Version 0.0.2
 """
 
-from CommandTypes import Command
+from ariautils.command_utils import Command
+from ariautils import command_utils
 
 class OpenApp(Command):
     info = {
@@ -50,7 +51,7 @@ class OpenApp(Command):
         cmd_args = " ".join(query.split()[1:])
 
         print("open " + cmd_args)
-        Command.managers["command"].plugins["aria_terminal"].execute("open " + cmd_args, 2)
+        command_utils.plugins["aria_terminal"].execute("open " + cmd_args, 2)
 
         target = []
         parts = cmd_args.split()
@@ -72,7 +73,7 @@ class OpenApp(Command):
         target = "\ ".join(parts)
         print(target)
         # Pseudo-jump to target to track the app usage
-        Command.managers["command"].plugins["aria_jump"].execute("j "+target.strip(), 3)
+        command_utils.plugins["aria_jump"].execute("j "+target.strip(), 3)
 
     def get_query_type(self, query):
         parts = query.split()

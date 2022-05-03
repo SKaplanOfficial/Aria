@@ -1,3 +1,307 @@
+"""A manager for Aria command modules. Only one CommandManager should be active at a time.
+"""
+
+import importlib, os, re
+from . import config_utils, file_utils
+
+plugins = dict()
+invocations = dict()
+handlers = dict()
+handler_checkers = dict()
+
+requirements = dict()
+
+def get_all_commands():
+    """
+    Loads all command modules enabled in aria_config.json.
+
+    Returns:
+        None
+    """
+    aria_path = config_utils.get("aria_path")
+    files = os.listdir(path=aria_path+"/cmds")
+    for f in files:
+        if "__" not in f and ".pyc" not in f and ".DS_Store" not in f:
+            cmd_name = f.replace(".py", "")
+            if cmd_name in config_utils.get("plugins").keys():
+                if config_utils.get("plugins")[cmd_name]:
+                    # Add module command object
+                    module = importlib.import_module("cmds."+cmd_name)
+                    command_obj = getattr(module, "command", None)
+
+                    if command_obj == None:
+                        print("Error: Couldn't find command definition in " + cmd_name + ".py. Proceed with caution.")
+                        continue
+                    plugins[cmd_name] = module.command
+
+                    # TODO: Use IDs for all entries, not as a secondary bandaid
+                    plugins[module.command.info["id"]] = module.command
+
+                    check_command_structure(cmd_name, plugins[cmd_name])
+
+                    # Add invocation methods
+                    invocations[cmd_name] = plugins[cmd_name].invocation
+
+                    # Add handlers
+                    handler_checkers[cmd_name] = plugins[cmd_name].handler_checker
+                    handlers[cmd_name] = plugins[cmd_name].handler
+
+                    # Add requirements
+                    if "requirements" in plugins[cmd_name].info:
+                        requirements.update(plugins[cmd_name].info["requirements"])
+
+    for requirement in requirements:
+        found = False
+        for plugin in plugins:
+            if plugins[plugin].info["id"] == requirement:
+                if plugins[plugin].info["version"] == requirements[requirement]:
+                    found = True
+        
+        if not found:
+            print("Warning: Requirement not satisfied:")
+            print("  Expected: " + requirement + " @" + requirements[requirement])
+            print("  Found: " + requirement + " @" + plugins[plugin].info["version"] + " instead. Proceed with caution.")
+                        
+    print("Loaded", len(plugins), "plugins.")
+
+def check_command_structure(cmd_name, command):
+    """
+    Checks the metadata and method definitions of a command plugin for required and recommended attributes.
+
+    Parameters:
+        cmd_name (str) - The name of the command (currently the filename).
+        command (Command) - The Command object exported by the plugin module.
+
+    Returns:
+        None
+    """
+    required_info_keys = ["title", "id", "version", "description"]
+    recommended_info_keys = ["repository", "requirements", "purposes", "targets", "example_usage"]
+
+    required_methods = ["execute", "help"]
+    recommended_methods = ["get_query_type", "handler_checker", "handler"]
+
+    for key in required_info_keys:
+        if key not in command.info:
+            print("Error: Plugin '" + cmd_name + "' does not define the required '" + key + "' key. Proceed with caution.")
+    
+    for key in recommended_info_keys:
+        if key not in command.info and (config_utils.get("dev_mode") or config_utils.runtime_config["debug"]):
+            print("Warning: Plugin '" + cmd_name + "' does not define the recommended '" + key + "' key.")
+
+    for method in required_methods:
+        method_def = getattr(command, method, None)
+        if method_def == None:
+            print("Error: Plugin '" + cmd_name + "' does not define the required '" + method + "' method. Proceed with caution.")
+
+    invocation_def = getattr(command, "invocation", None)
+    if invocation_def == None:
+        for method in recommended_methods:
+            method_def = getattr(command, method, None)
+            if method_def == None and (config_utils.get("dev_mode") or config_utils.runtime_config["debug"]):
+                print("Warning: Plugin '" + cmd_name + "' does define neither an invocation method nor a '" + method + "' method. At least one should be defined.")
+
+def cmd_from_template(str_in):
+    """
+    Creates a new command module using the template method of another command.
+
+    Parameters:
+        str_in: str - The full string that initiated this command.
+
+    Notes:
+        - The CommandManager should not be handling parsing of str_in. Check this ASAP. Use a new_command and target_command parameter instead.
+    """
+    aria_path = config_utils.get("aria_path")
+
+    # Determine relevant command names
+    if str_in.startswith("make command "):
+        new_cmd_name = str_in[13:str_in.index("from")-1]
+        old_cmd_name = str_in[str_in.index("from")+5:]
+    elif str_in.startswith("make"):
+        new_cmd_name = str_in[5:str_in.index("from")-1]
+        old_cmd_name = str_in[str_in.index("from command")+13:]
+    else:
+        # Some error occurred
+        print("Unable to create command.")
+        return
+
+    # Check if new command already exists
+    if get_command_name(new_cmd_name):
+        print("Target command already exists.")
+        return
+
+    # Get old cmd file path
+    old_filename = get_command_name(old_cmd_name) + ".py"
+    if (old_filename == "" or old_filename is None):
+        print("Reference command does not exist.")
+        return
+
+    # Get old cmd file content
+    old_file_content = file_utils.get_file_content(aria_path+"/cmds/"+old_filename)
+
+    # Modify code
+    new_file_content = old_file_content.replace(old_cmd_name + " ", new_cmd_name)
+    new_file_content = new_file_content.replace(
+        old_cmd_name.title() + " ", new_cmd_name.title())
+
+    try:
+        cmd_module = importlib.import_module("cmds."+old_cmd_name)
+        old_cmd = cmd_module.Command()
+        template = old_cmd.get_template(new_cmd_name)
+
+        for key in template:
+            new_file_content = re.sub(
+                key+" = .*"+"\n", key+" = "+template[key]+"\n", new_file_content)
+
+    except Exception as e:
+        print("Unable to access reference command template:\n"+str(e))
+
+    # Create new file
+    with open(aria_path+"/cmds/"+new_cmd_name+".py", "w") as new_file:
+        new_file.write(new_file_content)
+
+    print("Command " + new_cmd_name + " created.")
+
+def create_shortcut(cmd_str, cmd_name):
+    """
+    Removes a command plugin from the plugins dictionary and disables it in aria_config.json.
+
+    Arguments:
+        cmd_str {String} -- The full command to be saved as a shortcut, including arguments.
+        cmd_name {String} -- The name of the command plugin to be saved as a shortcut; the default name of the shotcut.
+
+    Returns:
+        None
+    """
+    aria_path = config_utils.get("aria_path")
+    script = f"""#! /bin/zsh
+    cd {aria_path}
+    python Aria.py --cmd "{cmd_str}" --close
+    exit
+    """
+
+    print("Where do you want the shortcut?", end="\n->")
+    folder_path = input()
+
+    print("What do you want the shorcut to be named? Leave blank to name it '" + cmd_name + ".'", end="\n->")
+    name = input()
+    if name == "":
+        name = cmd_name
+
+    file_path = folder_path + "/" + name
+    if folder_path.endswith("/"):
+        file_path = folder_path + name
+
+    with open(file_path, 'w') as new_file:
+        new_file.write(script)
+
+    mode = os.stat(file_path).st_mode
+    mode |= (mode & 0o444) >> 2    # copy R bits to X
+    os.chmod(file_path, mode)
+    print("Created shortcut '" + name + ".'")
+
+def get_command_name(cmd_name):
+    """
+    Returns the name of the file associated with a command.
+
+    Arguments:
+        cmd_name {String} -- The name of the target command.
+
+    Returns:
+        String -- the name of the file (not including .py extension)
+    """
+    name_condensed = cmd_name.replace(" ", "")
+
+    files = os.listdir(path=config_utils.get("aria_path")+"/cmds")
+    for f in files:
+        if f.startswith(name_condensed):
+            return f[:-3]
+
+def get_candidate_command_names(input_str):
+    """
+    Returns a list of file where the input string is a substring of the filename.
+
+    Arguments:
+        input_str {String} -- A substring of the target command.
+
+    Returns:
+        [String] -- An array of filenames (not including .py extension)
+    """
+    filenames = []
+    name_condensed = input_str.replace(" ", "")
+
+    files = os.listdir(path=config_utils.get("aria_path")+"/cmds")
+    for f in files:
+        if f.startswith(name_condensed):
+            filenames.append(f[:-3])
+    return filenames
+
+def enable_command_plugin(cmd_name):
+    """Add a command plugin to the plugins dictionary and enables it in aria_config.json.
+
+    Arguments:
+        cmd_name {String} -- The name of the command plugin to be enabled.
+
+    Returns:
+        boolean -- True if a plugin is successfully enabled, False if the plugin is already enabled.
+    """
+    if cmd_name in config_utils.get("plugins"):
+        if config_utils.get("plugins")[cmd_name]["enabled"] == True:
+            print(cmd_name, "is already enabled.")
+            return False
+        else:
+            config_utils.get("plugins")[cmd_name]["enabled"] = True
+    else:
+        config_utils.get("plugins")[cmd_name] = {
+            "enabled": True
+        }
+    config_utils.save_global_config()
+    module = importlib.import_module("cmds."+cmd_name)
+    aria_path = config_utils.get("aria_path")
+    plugins[cmd_name] = module.Command()
+
+    print(cmd_name, "has been enabled.")
+    return True
+
+def disable_command_plugin(cmd_name):
+    """
+    Removes a command plugin from the plugins dictionary and disables it in aria_config.json.
+
+    Arguments:
+        cmd_name {String} -- The name of the command plugin to be disabled.
+
+    Returns:
+        boolean -- True if a plugin is successfully disabled, False if the plugin is already disabled.
+    """
+    if cmd_name in config_utils.get("plugins"):
+        if config_utils.get("plugins")[cmd_name]["enabled"] == False:
+            print(cmd_name, "is already disabled.")
+            return False
+        else:
+            config_utils.get("plugins")[cmd_name]["enabled"] = False
+    else:
+        config_utils.get("plugins")[cmd_name] = {
+            "enabled": False
+        }
+    config_utils.save_global_config()
+    plugins.pop(cmd_name)
+
+    print(cmd_name, "has been disabled.")
+    return True
+
+def cmd_method(cmd_name, method_name):
+    if (cmd_name == "" or cmd_name is None):
+        print("'" + method_name + "' rountine not found (Cannot find base command '" + cmd_name + "').")
+    else:
+        # Attempt to show help information
+        plugin = plugins[cmd_name]
+        method = getattr(plugin, method_name, None)
+
+        if callable(method):
+            method()
+        else:
+            print("'" + method_name + "' rountine not found (Missing '" + method_name + "' method).")
+
 from textwrap import dedent
 
 managers = None

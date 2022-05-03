@@ -4,14 +4,12 @@ Aria - A modular virtual assistant for the crazy ones.
 Version 0.0.1
 """
 
-from multiprocessing import managers
 import re
 import threading
 import time
 import argparse
-from Managers import AriaManager
 
-managers = {}
+from ariautils import command_utils, config_utils, context_utils, io_utils
 
 if __name__ == '__main__':
     # Set up commandline argument parsing
@@ -23,12 +21,13 @@ if __name__ == '__main__':
     arg_parser.add_argument("--speak_query", action="store_true", help = "Enable spoken queries.")
     args = arg_parser.parse_args()
 
-    runtime_config = {
+    config_utils.runtime_config = {
         'debug' : args.debug,
         'speak_reply' : args.speak_reply,
         'speak_query' : args.speak_query,
     }
-    managers = AriaManager.initialize_managers(runtime_config)
+
+    command_utils.get_all_commands()
 
 def parse_input(str_in):
     """
@@ -36,7 +35,6 @@ def parse_input(str_in):
 
     Parameters:
         str_in : str - A command (and any arguments) to be run.
-        managers : [Manager] - A list of references to all manager objects.
 
     Returns:
         None
@@ -59,26 +57,26 @@ def parse_input(str_in):
     if str_in == "q":
         exit()
     elif str_in == "repeat":
-        managers["output"].repeat()
+        io_utils.repeat()
     elif re.match("(make command )(\w*)( from )(\w*)", str_in) or re.match("(make )(\w*)( from command )(\w*)", str_in):
         # Make new command based on another command
-        managers["command"].cmd_from_template(str_in)
+        command_utils.cmd_from_template(str_in)
     elif str_in.startswith("enable plugin "):
         cmd_name = str_in[14:]
-        managers["command"].enable_command_plugin(cmd_name)
+        command_utils.enable_command_plugin(cmd_name)
     elif str_in.startswith("disable plugin "):
         cmd_name = str_in[15:]
-        managers["command"].disable_command_plugin(cmd_name)
+        command_utils.disable_command_plugin(cmd_name)
     elif str_in.startswith("report "):
-        cmd_name = managers["command"].get_command_name(str_in[7:].lower())
-        managers["command"].cmd_method(cmd_name, "report")
+        cmd_name = command_utils.get_command_name(str_in[7:].lower())
+        command_utils.cmd_method(cmd_name, "report")
     elif str_in.startswith("help "):
-        cmd_name = managers["command"].get_command_name(str_in[5:].lower())
-        managers["command"].cmd_method(cmd_name, "help")
+        cmd_name = command_utils.get_command_name(str_in[5:].lower())
+        command_utils.cmd_method(cmd_name, "help")
     else:
         # TODO: Extract this into the CommandManager class to avoid repetition
         # Run invocation checkers for each command plugin
-        for (cmd, invocation_checker) in managers["command"].invocations.items():
+        for (cmd, invocation_checker) in command_utils.invocations.items():
             if invocation_checker(str_in):
                 cmd_name = cmd
 
@@ -87,10 +85,10 @@ def parse_input(str_in):
         handler = None
         max_handler_score = 0
         if cmd_name == "" or cmd_name is None:
-            for (cmd, handler_checker) in managers["command"].handler_checkers.items():
+            for (cmd, handler_checker) in command_utils.handler_checkers.items():
                 try:
                     handler_score = handler_checker(str_in)
-                    managers["output"].dprint(cmd, handler_score)
+                    io_utils.dprint(cmd, handler_score)
                 except Exception as e:
                     print(e)
                     pass
@@ -98,7 +96,7 @@ def parse_input(str_in):
                 if handler_score != None:
                     if handler_score > max_handler_score:
                         max_handler_score = handler_score
-                        handler = managers["command"].handlers[cmd]
+                        handler = command_utils.handlers[cmd]
         
         if handler != None:
             # If a plugin has a handler for this input, run the handler
@@ -107,7 +105,7 @@ def parse_input(str_in):
             # Try known files
             if cmd_name == "" or cmd_name is None:
                 first_word = str_in.split(" ")[0]
-                for key in managers["command"].plugins.keys():
+                for key in command_utils.plugins.keys():
                     if key.startswith(first_word):
                         cmd_name = key
                         break
@@ -115,58 +113,58 @@ def parse_input(str_in):
             # Try finding new plugin files -- these will probably be disabled
             if cmd_name == "" or cmd_name is None:
                 first_word = str_in.split(" ")[0]
-                cmd_name = managers["command"].get_command_name(first_word.lower())
+                cmd_name = command_utils.get_command_name(first_word.lower())
 
-            if cmd_name == "" or cmd_name is None or cmd_name not in managers["command"].plugins.keys():
+            if cmd_name == "" or cmd_name is None or cmd_name not in command_utils.plugins.keys():
                 # No command found
-                managers["output"].sprint("I couldn’t find that command.")
-            elif cmd_name in managers["config"].get("plugins").keys() and managers["config"].get("plugins")[cmd_name]["enabled"] == False:
+                io_utils.sprint("I couldn’t find that command.")
+            elif cmd_name in config_utils.get("plugins").keys() and config_utils.get("plugins")[cmd_name]["enabled"] == False:
                 # Command was found but is disabled
-                managers["output"].sprint("Sorry, that command is disabled.")
+                io_utils.sprint("Sorry, that command is disabled.")
 
             else:
                 # Enabled command has been found
                 if int(time.time()) % 3 == 0:
                     # Occasional Acknowledgement
-                    managers["output"].sprint("Ok!")
+                    io_utils.sprint("Ok!")
 
                 data = None
-                if managers["config"].runtime_config["debug"]:
+                if config_utils.runtime_config["debug"]:
                     # No error check when debugging -- program will crash on error & display full stacktrace
-                    plugin = managers["command"].plugins[cmd_name]
+                    plugin = command_utils.plugins[cmd_name]
                     data = plugin.execute(str_in, 0)
                 else:
                     try:
-                        plugin = managers["command"].plugins[cmd_name]
+                        plugin = command_utils.plugins[cmd_name]
                         plugin.execute(str_in, 0)
                     except:
                         pass
 
 def aria_loop():
     """ Runs the main command input loop. """
-    while managers["context"].looping:
-        if len(managers["input"].waitlist) > 0:
-            pseudo_command = managers["input"].waitlist.pop()
+    while context_utils.looping:
+        if len(io_utils.waitlist) > 0:
+            pseudo_command = io_utils.waitlist.pop()
             run_inputs(pseudo_command)
-        elif managers["input"].cmd_entered:
-            str_in = managers["input"].input_buffer
-            managers["input"].input_buffer = ""
+        elif io_utils.cmd_entered:
+            str_in = io_utils.input_buffer
+            io_utils.input_buffer = ""
             
             if str_in == "context":
-                print("-"*25, "\n", "Current App: ", managers["context"].current_app, "\n\n")
-                print("Current Context: ", managers["context"].current_context.data, "\n\n")
-                print("Context History: ", managers["context"].current_context.data, "\n", "-"*25, "\n\n")
+                print("-"*25, "\n", "Current App: ", context_utils.current_app, "\n\n")
+                print("Current Context: ", context_utils.current_context.data, "\n\n")
+                print("Context History: ", context_utils.current_context.data, "\n", "-"*25, "\n\n")
             else:
                 run_inputs(str_in)
 
-            managers["context"].previous_input = str_in
-            managers["input"].last_entered = str_in
-            managers["input"].cmd_entered = False
+            context_utils.previous_input = str_in
+            io_utils.last_entered = str_in
+            io_utils.cmd_entered = False
         else:
-            if managers['config'].runtime_config['speak_query']:
-                managers["input"].detect_spoken_input()
+            if config_utils.runtime_config['speak_query']:
+                io_utils.detect_spoken_input()
             else:
-                managers["input"].detect_typed_input()
+                io_utils.detect_typed_input()
 
 
 def run_inputs(str_in):
@@ -195,8 +193,8 @@ def run_inputs(str_in):
 
 def context_loop():
     """ Updates the context tracker once a second. """
-    while managers["context"].looping:
-        managers["context"].update_context()
+    while context_utils.looping:
+        context_utils.update_context()
         time.sleep(1)
 
 
@@ -214,12 +212,11 @@ if __name__ == '__main__':
             exit()
     else:
         # Run Aria in interactive mode
-        managers["output"].sprint("Hello, " + managers["config"].get("user_name") + "!")
-        managers["output"].sprint("How can I help?")
+        io_utils.sprint("Hello, " + config_utils.get("user_name") + "!")
+        io_utils.sprint("How can I help?")
 
         context_thread.start()
         aria_thread.start()
 
-        while managers["context"].looping:
-            AriaManager.main()
+        while context_utils.looping:
             time.sleep(0.1)

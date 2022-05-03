@@ -6,7 +6,7 @@ Last Updated: Version 0.0.1
 
 import subprocess
 
-from CommandTypes import Command
+from ariautils.command_utils import Command
 
 class Terminal(Command):
     info = {

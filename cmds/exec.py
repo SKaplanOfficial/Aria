@@ -7,8 +7,9 @@ Last Updated: Version 0.0.1
 from datetime import datetime
 from time import sleep
 
-from CommandTypes import Command
-from AriaUtils import Blah
+from ariautils import context_utils, io_utils
+from ariautils.command_utils import Command
+from ariautils.tracking_utils import TrackingManager
 
 class Execute(Command):
     info = {
@@ -53,10 +54,6 @@ class Execute(Command):
         self.force_context = False
 
     def execute(self, query, origin):
-        blah2 = Blah("jello")
-        blah2.get_wow()
-        return
-        
         # Extract targets from query
         query_type = self.get_query_type(query)
         target_destinations = query.split()
@@ -71,7 +68,7 @@ class Execute(Command):
             "targets" : list,
         }
 
-        exec_tracker = Command.managers["tracking"].tracker(
+        exec_tracker = TrackingManager.tracker(
             "exec",
             item_structure = item_structure,
             data_source = self.parse_target,
@@ -99,12 +96,12 @@ class Execute(Command):
         exec_tracker.save_data()
 
         if self.force_context:
-            Command.managers["context"].blank_context()
+            context_utils.blank_context()
 
         commands = best_candidate.data["targets"].split("|")
         for command in commands:
             print("Running", command)
-            Command.managers["input"].pseudo_input(command)
+            io_utils.pseudo_input(command)
             sleep(0.1)
 
     def _get_best_candidate(self, exec_target, candidates, exec_tracker):
