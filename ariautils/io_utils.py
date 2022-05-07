@@ -35,7 +35,7 @@ def getch():
 
 def replace_line(new_line):
     print("", end="\x1b[2K")
-    print("\r"+ new_line, end="")
+    print("\r" + new_line, end="")
 
 def sound():
     """Plays a blip sound to indicate inability to complete target action."""
@@ -87,7 +87,6 @@ def detect_typed_input():
 
     elif repr(input_key) == ENTER:
         dprint('Enter')
-        print("")
         cmd_entered = True
 
     elif repr(input_key) == ESCAPE:
@@ -218,27 +217,26 @@ def detect_typed_input():
         autocomplete_buffer = ""
         autocomplete_counter = -1
         input_buffer += input_key
-        print("\r"+ input_buffer, end="")
+        print("\r" + input_buffer, end="")
 
 
 
 """A standard output manager for Aria. Only one OutputManager should be active at a time.
 """
 
-def sprint(*arr):
+def sprint(string):
     """ Speaks and prints the supplied args if the speak_reply flag is true, otherwise just prints normally. """
     global last_spoken_reply
-    arr_str = " ".join(map(str,arr))
-    print(arr_str)
+    print("\r" + string)
     if config_utils.runtime_config["speak_reply"]:
-        os.system("say "+arr_str)
-        last_spoken_reply = arr_str
+        os.system("say " + string)
+        last_spoken_reply = string
 
 def repeat():
     """ Repeats the last output. """
     sprint(last_spoken_reply)
 
-def dprint(*arr):
+def dprint(string):
     """ Prints supplied args only if debug mode is enabled. """
     if config_utils.runtime_config["debug"]:
-        print(" ".join(map(str,arr)))
+        print("\r" + string)

@@ -44,7 +44,8 @@ class OpenApp(Command):
             "author": "Stephen Kaplan",
             "email": "stephen.kaplan@maine.edu",
             "website": "http://skaplan.io",
-        }
+        },
+        "info_version": "0.9.0",
     }
 
     def execute(self, query, origin):
