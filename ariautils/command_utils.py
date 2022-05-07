@@ -1,8 +1,10 @@
 """A manager for Aria command modules. Only one CommandManager should be active at a time.
 """
 
-import importlib, os, re
-from . import config_utils, file_utils
+from calendar import c
+import importlib, os, re, threading, sys
+from json import load
+from . import command_utils, config_utils, io_utils, file_utils
 
 plugins = dict()
 invocations = dict()
@@ -11,7 +13,84 @@ handler_checkers = dict()
 
 requirements = dict()
 
-def get_all_commands():
+def load_command(cmd_name):
+    """Loads a command from a command plugin file.
+
+    :param cmd_name: The name of the command to load; the name of a file in the cmds subdirectory (without the .py extension).
+    :type cmd_name: str
+    """
+    # Add module command object
+    module = None
+    module = importlib.import_module("cmds."+cmd_name)
+    command_obj = getattr(module, "command", None)
+
+    if command_obj == None:
+        print("Error: Couldn't find command definition in " + cmd_name + ".py. Proceed with caution.")
+        return
+    plugins[cmd_name] = module.command
+
+    # TODO: Use IDs for all entries, not as a secondary bandaid
+    plugins[module.command.info["id"]] = module.command
+
+    check_command_structure(cmd_name, plugins[cmd_name])
+
+    # Add invocation methods
+    invocations[cmd_name] = plugins[cmd_name].invocation
+
+    # Add handlers
+    handler_checkers[cmd_name] = plugins[cmd_name].handler_checker
+    handlers[cmd_name] = plugins[cmd_name].handler
+
+    # Add requirements
+    if "requirements" in plugins[cmd_name].info:
+        requirements.update(plugins[cmd_name].info["requirements"])
+
+    # Run plugin configuration if necessary
+    if "configure" in vars(plugins[cmd_name].__class__):
+        plugins[cmd_name].configure()
+
+    # Preload plugin resources if necessary
+    if "preload" in vars(plugins[cmd_name].__class__):
+        preload_thread = threading.Thread(target=plugins[cmd_name].preload, name="preload_"+cmd_name)
+        preload_thread.start()
+
+def unload_command(cmd_name):
+    """Removes a command from Aria's active plugin dictionaries.
+
+    :param cmd_name: The name of the command to unload.
+    :type cmd_name: str
+    """
+    handlers.pop(cmd_name)
+    handler_checkers.pop(cmd_name)
+    invocations.pop(cmd_name)
+    plugins.pop(cmd_name)
+
+def reload_command(cmd_name):
+    """Reloads the module associated with the specified command name, loads the command back into Aria, and re-checks the requirements of all plugins.
+
+    :param cmd_name: The name of the command to reload.
+    :type cmd_name: str
+    """
+    importlib.reload(sys.modules[plugins[cmd_name].__module__])
+    load_command(cmd_name)
+    check_requirements()
+
+def check_requirements():
+    """Checks that the plugins and versions of plugins required by each loaded command plugin are installed and loaded.
+    """
+    for requirement in requirements:
+        found = False
+        for plugin in plugins:
+            if plugins[plugin].info["id"] == requirement:
+                if plugins[plugin].info["version"] == requirements[requirement]:
+                    found = True
+
+        if not found:
+            print("Warning: Requirement not satisfied:")
+            print("  Expected: " + requirement + " @" + requirements[requirement])
+            print("  Found: " + requirement + " @" + plugins[plugin].info["version"] + " instead. Proceed with caution.")
+
+def load_all_commands():
     """
     Loads all command modules enabled in aria_config.json.
 
@@ -20,49 +99,16 @@ def get_all_commands():
     """
     aria_path = config_utils.get("aria_path")
     files = os.listdir(path=aria_path+"/cmds")
+    num_commands = 0
     for f in files:
         if "__" not in f and ".pyc" not in f and ".DS_Store" not in f:
             cmd_name = f.replace(".py", "")
             if cmd_name in config_utils.get("plugins").keys():
                 if config_utils.get("plugins")[cmd_name]:
-                    # Add module command object
-                    module = importlib.import_module("cmds."+cmd_name)
-                    command_obj = getattr(module, "command", None)
-
-                    if command_obj == None:
-                        print("Error: Couldn't find command definition in " + cmd_name + ".py. Proceed with caution.")
-                        continue
-                    plugins[cmd_name] = module.command
-
-                    # TODO: Use IDs for all entries, not as a secondary bandaid
-                    plugins[module.command.info["id"]] = module.command
-
-                    check_command_structure(cmd_name, plugins[cmd_name])
-
-                    # Add invocation methods
-                    invocations[cmd_name] = plugins[cmd_name].invocation
-
-                    # Add handlers
-                    handler_checkers[cmd_name] = plugins[cmd_name].handler_checker
-                    handlers[cmd_name] = plugins[cmd_name].handler
-
-                    # Add requirements
-                    if "requirements" in plugins[cmd_name].info:
-                        requirements.update(plugins[cmd_name].info["requirements"])
-
-    for requirement in requirements:
-        found = False
-        for plugin in plugins:
-            if plugins[plugin].info["id"] == requirement:
-                if plugins[plugin].info["version"] == requirements[requirement]:
-                    found = True
-        
-        if not found:
-            print("Warning: Requirement not satisfied:")
-            print("  Expected: " + requirement + " @" + requirements[requirement])
-            print("  Found: " + requirement + " @" + plugins[plugin].info["version"] + " instead. Proceed with caution.")
-                        
-    print("Loaded", len(plugins), "plugins.")
+                    load_command(cmd_name)
+                    num_commands += 1
+    check_requirements()
+    return num_commands
 
 def check_command_structure(cmd_name, command):
     """
@@ -75,6 +121,10 @@ def check_command_structure(cmd_name, command):
     Returns:
         None
     """
+    info_def = getattr(command, "info", None)
+    if info_def == command_utils.Command.info:
+        print("Warning: Plugin '" + cmd_name + "' does not define its own info dictionary. Proceed with caution.")
+
     required_info_keys = ["title", "id", "version", "description"]
     recommended_info_keys = ["repository", "requirements", "purposes", "targets", "example_usage"]
 
@@ -99,7 +149,13 @@ def check_command_structure(cmd_name, command):
         for method in recommended_methods:
             method_def = getattr(command, method, None)
             if method_def == None and (config_utils.get("dev_mode") or config_utils.runtime_config["debug"]):
-                print("Warning: Plugin '" + cmd_name + "' does define neither an invocation method nor a '" + method + "' method. At least one should be defined.")
+                print("Warning: Plugin '" + cmd_name + "' does not define either an invocation method nor a '" + method + "' method. At least one should be defined.")
+
+    if "info_version" in command.info:
+        if command.info["info_version"] != command_utils.Command.info["info_version"]:
+            print("Warning: Plugin '" + cmd_name + "' uses the Version " + command.info["info_version"] + " command structure, but Aria expected Version " + command_utils.Command.info["info_version"] + ". Proceed with caution.")
+    else:
+        print("Warning: Could not determine the command structure version of plugin '" + cmd_name + "'. Proceed with caution.")
 
 def cmd_from_template(str_in):
     """
@@ -304,8 +360,6 @@ def cmd_method(cmd_name, method_name):
 
 from textwrap import dedent
 
-managers = None
-
 class Command:
     """This is the base Command class for all Aria commands.
 
@@ -392,13 +446,13 @@ class Command:
             "author": "",
             "email": "",
             "website": "",
-        }
+        },
+        "info_version": "0.9.0",
     }
 
     def __init__(self):
         """Constructs a Command object.
         """
-        self.managers = None    # A dictionary of Aria's manager objects
         pass
 
     def execute(self, query, origin):
@@ -488,20 +542,16 @@ class Command:
     def prepare(self):
         """Initializes objects and resources to be used in an upcoming execution of this command.
         Children of the Command class are not required to implement this method, and there is often no need to call it. It is not automatically called.
-        An implemention should be provided when all of the following conditions are true: other commands are likely to call this command, the preparation procedure
-        for this command takes a nontrivial amount of time, and the preparation must necessarily be done upon each execution
-        instead of upon initialization of the command object.
+        An implemention should be provided when all of the following conditions are true: 1) other commands are likely to call this command, 2) the preparation procedure for this command takes a nontrivial amount of time, and 3) the preparation procedure must occur upon most (but not necessary every) execution of the command instead.
+
+        In cases where preparation cannot be done asychronously or otherwise without significantly impacting Aria's performance, the self.preload() method is preferred.
 
         If applicable, manually run this before or at the start of self.execute().
         """
         pass
 
     def cleanup(self):
-        """Removes any unneeded references and resources but keeps resources beneficial to subsequent executions of this command.
-        Children of the Command class are not required to implement this method, however, it is automatically called at the end of each execution.
-        An implementation should be provided when the data and references stored at the object- or class-level are of nontrivial size,
-        or when object- or class-level variables are used for temporary data storage. In the latter case, consider whether storage at that scope is
-        necessary or beneficial to your command. That tactic is, in fact, useful in some cases, such as when storing data while handling a query before execution.
+        """Removes any unneeded references and resources but keeps resources beneficial to subsequent executions of this command. Children of the Command class are not required to implement this method, however, it is automatically called at the end of each execution. An implementation should be provided when the data and references stored at the object- or class-level are of nontrivial size, or when object- or class-level variables are used for temporary data storage. In the latter case, consider whether storage at that scope is necessary or beneficial to your command. That tactic is, in fact, useful in some cases, such as when storing data while handling a query before execution.
 
         Runs automatically after self.execute().
         """
@@ -525,68 +575,18 @@ class Command:
         """
         pass
 
+    def configure(self):
+        """Checks for entries in aria_config.json, updates config entries, and adds missing config entries. Children of the Command class are not required to implement this method. This method should be implemented in cases where persistent configuration settings offer useful benefits to users. This method should not be used to store regularly changing data or track data over time (a Tracker object is more suitable to such scenarios). Command developers should strive to uphold the semi-static nature of configuration files -- essentially meaning that the aria_config.json should change only when users expect or request it to be changed.
 
-
-# Blah
-class _API:
-    def __init__(self, base_url, api_key, structure = None):
-        self.base_url = base_url
-        self.api_key = api_key
-        self.api_structure = structure
-
-    def make_query(self, ):
+        Runs automatically at the end of self.get_all_commands(), before self.preload().
+        """
         pass
 
-    def call(self, query):
-        #get_json(self.api_key)
+    def preload(self):
+        """Runs custom code when this command plugin is loaded into Aria's plugin dictionary. Children of the Command class are not required to implement this method. Commands should implement this method when the following conditions are met: 1) the command relies on resources that take a nontrivial amount of time to retrieve, 2) the resources are necessary for the majority of the command's execution branches, 3) it is not possible or desirable to store and retrieve the resources in a more efficient way, and 4) the resources can be loaded one time instead of upon each execution of the command.
+
+        In cases where resources can be obtained or configured asynchronously, the self.prepare() method is preferred.
+        
+        Runs automatically in a separate thread beginning at the end of self.get_all_commands(), after self.configure(). Command developers looking to implement this method should be mindful of its threaded execution.
+        """
         pass
-
-    def add_route():
-        pass
-
-
-### High-level Action Classes
-class WebAction(Command):
-    def find_api(base_url):
-        pass
-
-
-class SystemAction(Command):
-    pass
-
-
-class InputAction(Command):
-    pass
-
-
-
-### Action Subclasses
-class APIAction(WebAction):
-    
-    def __init__(self):
-        pass
-
-    def get_response(self, ):
-        pass
-
-
-class TerminalCommand(SystemAction):
-    pass
-
-
-class AppAction(SystemAction):
-    pass
-
-
-class FileAction(SystemAction):
-    pass
-
-
-class KeyboardAction(InputAction):
-    # Text input, keystrokes
-    pass
-
-
-class ClickAction(SystemAction, InputAction):
-    # Mouse click sequence
-    pass

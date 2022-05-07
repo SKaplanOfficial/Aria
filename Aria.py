@@ -27,7 +27,8 @@ if __name__ == '__main__':
         'speak_query' : args.speak_query,
     }
 
-    command_utils.get_all_commands()
+    num_commands = command_utils.load_all_commands()
+    print("Loaded", num_commands, "command plugins.")
 
 def parse_input(str_in):
     """
@@ -88,7 +89,7 @@ def parse_input(str_in):
             for (cmd, handler_checker) in command_utils.handler_checkers.items():
                 try:
                     handler_score = handler_checker(str_in)
-                    io_utils.dprint(cmd, handler_score)
+                    io_utils.dprint(cmd + " " + str(handler_score))
                 except Exception as e:
                     print(e)
                     pass
@@ -173,7 +174,6 @@ def run_inputs(str_in):
     
     Parameters:
         str_in : str - One or more commands to be run, separated by " && ".
-        managers : [Manager] - A list of references to all manager objects.
 
     Returns:
         None
