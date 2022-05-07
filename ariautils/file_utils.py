@@ -1,11 +1,14 @@
 """A document/file IO manager for Aria. Only one DocumentManager should be active at a time.
 """
 
-import os
+import os, threading
+from time import sleep
 
 current_file = []
 previous_files = []
 file_history_size = 10
+
+daemons = []
 
 def set_current_file(new_file_path):
     """ Sets the current file. """
@@ -23,11 +26,161 @@ def open_file(filepath, mode = "w"):
     return open(filepath, mode)
 
 def close_file(file):
-    """ Closes a supplied file object. """
+    """Closes a supplied file object.
+    """
     file.close()
 
 def touch(filepath):
+    """Creates an empty file.
+    """
     write(filepath, "", "a")
+
+def watch_file_for_changes(filepath, on_change):
+    """Initializes a daemon thread that detects changes in the hash of the specified file.
+
+    :param filepath: The full path of the file to observe changes in.
+    :type filepath: str
+    :param on_change: A method to be executed when changes are detected. Must accept the file path as an argument.
+    :type on_change: func(str)
+    :return: None
+    """
+    id = len(daemons)
+
+    watcher_thread = threading.Thread(target=_watch_file_daemon, args=(filepath, id, on_change), name="watcher_" + str(id), daemon=True)
+    daemons.append((watcher_thread, True, filepath))
+    watcher_thread.start()
+
+def watch_folder_for_changes(folder_path, on_change, watch_files = False):
+    """Initializes a daemon thread that detect changes in the specified folder's content.
+
+    :param folder_path: The full path of the folder to observe changes in.
+    :type folder_path: str
+    :param on_change: A method to be executed when changes are detected. Must accept the folder path as an argument.
+    :type on_change: func(str)
+    :param watch_files: Whether to check for changes in the content of files instead of just the number of files in the folder, defaults to False.
+    :type watch_files: bool, optional
+    :return: None
+    """
+    id = len(daemons)
+
+    watcher_thread = threading.Thread(target=_watch_folder_daemon, args=(folder_path, id, on_change, watch_files), name="watcher_" + str(id), daemon=True)
+    daemons.append((watcher_thread, True, folder_path))
+    watcher_thread.start()
+
+def stop_watching(path):
+    """Tells the daemon watching for changes to the given path to stop.
+
+    :param path: A path currently being watched for changes.
+    :type path: str
+    """
+    for index, daemon_tuple in enumerate(daemons):
+        if daemon_tuple[2] == path:
+            daemons[index] = (daemon_tuple[0], False, daemon_tuple[1])
+            daemon_tuple[0].join()
+
+def stop_watching_all():
+    """Tells all daemons watching for changes to stop.
+
+    :return: The number of daemons stopped.
+    :rtype: int
+    """
+    for index, daemon_tuple in enumerate(daemons):
+        daemons[index] = (daemon_tuple[0], False, daemon_tuple[1])
+        daemon_tuple[0].join()
+    return len(daemons)
+
+def _watch_file_daemon(filepath, id, on_change):
+    """The daemon that watches for changes to an individual file.
+
+    :param filepath: The full path of the file to observe changes in.
+    :type filepath: str
+    :param id: The index of the daemon in the list of daemons.
+    :type id: int
+    :param on_change: A method to be executed when changes are detected. Must take the file path as an argument.
+    :type on_change: func(str)
+    """
+    old_hash = None
+    while daemons[id][1]:
+        file = open(filepath, 'r')
+        new_hash = hash(file.read())
+
+        if old_hash == None:
+            hash = hash(content)
+        elif old_hash != new_hash:
+            old_hash = new_hash
+            on_change(filepath)
+
+        file.close()
+        sleep(1)
+
+def _watch_folder_daemon(folder_path, id, on_change, watch_files = False):
+    """The daemon that watches for changes to a folder and the files within it.
+
+    :param filepath: The full path of the folder to observe changes in.
+    :type filepath: str
+    :param id: The index of the daemon in the list of daemons.
+    :type id: int
+    :param on_change: A method to be executed when changes are detected. Must take the folder path as an argument.
+    :type on_change: func(str)
+    :param watch_files: Whether to check for changes in the content of files instead of just the number of files in the folder, defaults to False
+    :type watch_files: bool, optional
+    """
+    files = os.listdir(folder_path)
+    files.sort()
+
+    file_hashes = []
+    if watch_files:
+        for filename in files:
+            file = open(folder_path + "/" + filename, "r")
+
+            if filename == ".DS_Store":
+                file_hashes.append(None)
+            else:
+                content = file.read()
+                file_hashes.append(hash(content))
+            file.close()
+
+    while daemons[id][1]:
+        current_files = os.listdir(folder_path)
+        current_files.sort()
+        
+        if files != current_files:
+            files = current_files
+            on_change(folder_path)
+            file_hashes.clear()
+            if watch_files:
+                for filename in files:
+                    file = open(folder_path + "/" + filename, "r")
+
+                    try:
+                        content = file.read()
+                        file_hashes.append(hash(content))
+                    except:
+                        file_hashes.append(None)
+
+                    file.close()
+
+        elif watch_files:
+            found_changes = False
+            for index, filename in enumerate(current_files):
+                file = open(folder_path + "/" + filename, "r")
+
+                new_hash = None
+                try:
+                    new_hash = hash(file.read())
+                except:
+                    pass
+
+                file.close()
+
+                if file_hashes[index] != new_hash:
+                    found_changes = True
+                    file_hashes[index] = new_hash
+
+            if found_changes:
+                on_change(folder_path)
+                    
+        sleep(1)
 
 def get_file_content(filepath):
     """
