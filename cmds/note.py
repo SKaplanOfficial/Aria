@@ -167,7 +167,7 @@ class Note(Command):
                 "modifiers": ["name", "days", "file_target", "path_target"]
             },
             "tertiary": {
-                "regex": r'entry|doc|worddoc',
+                "regex": r'entry|doc|worddoc|document',
                 "type": 2,
                 "modifiers": ["name", "days", "file_target", "path_target"]
             },
@@ -182,7 +182,7 @@ class Note(Command):
                 "modifiers": ["name", "days", "file_target", "path_target"]
             },
             "days": {
-                "regex": r'today|tomorrow|yesterday',
+                "regex": r' today| tomorrow| yesterday',
                 "type": 16,
             },
             "file_target": {
@@ -194,7 +194,7 @@ class Note(Command):
                 "type": 64, 
             },
             "name": {
-                "regex": r'called|named|by the name of|with the name',
+                "regex": r' called| named| by the name of| with the name',
                 "type": 128,
             },
         }

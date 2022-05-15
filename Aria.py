@@ -9,11 +9,14 @@ import threading
 import time
 import argparse
 
+from pathlib import Path
+
 from ariautils import command_utils, config_utils, context_utils, io_utils
 
 if __name__ == '__main__':
     # Set up commandline argument parsing
     arg_parser = argparse.ArgumentParser(description="A virtual assistant.")
+    arg_parser.add_argument("--input", type = str, help = "Input data for Aria to analyze.")
     arg_parser.add_argument("--cmd", type = str, help = "A command to be run when Aria starts.")
     arg_parser.add_argument("--close", action = "store_true", help = "Whether Aria should close after running a command provided via --cmd.")
     arg_parser.add_argument("--debug", action="store_true", help = "Enable debug features.")
@@ -26,6 +29,10 @@ if __name__ == '__main__':
         'speak_reply' : args.speak_reply,
         'speak_query' : args.speak_query,
     }
+
+    if args.input != None:
+        input_path = Path(args.input)
+        print(input_path.parts)
 
     num_commands = command_utils.load_all_commands()
     print("Loaded", num_commands, "command plugins.")
@@ -118,7 +125,8 @@ def parse_input(str_in):
 
             if cmd_name == "" or cmd_name is None or cmd_name not in command_utils.plugins.keys():
                 # No command found
-                io_utils.sprint("I couldn’t find that command.")
+                if not config_utils.runtime_config["speak_query"]:
+                    io_utils.sprint("I couldn’t find that command.")
             elif cmd_name in config_utils.get("plugins").keys() and config_utils.get("plugins")[cmd_name]["enabled"] == False:
                 # Command was found but is disabled
                 io_utils.sprint("Sorry, that command is disabled.")

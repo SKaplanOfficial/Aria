@@ -72,8 +72,8 @@ class Execute(Command):
         exec_tracker = TrackingManager.tracker(
             "exec",
             item_structure = item_structure,
-            data_source = self.parse_target,
-            merge_method = self._increment_freq
+            data_source = self.__parse_target,
+            merge_method = self.__increment_freq
         )
         exec_tracker.load_data()
 
@@ -81,12 +81,12 @@ class Execute(Command):
         candidates = exec_tracker.get_items_containing("targets", target_destinations)
 
         # Create an object for the target jump(s)
-        data = self.parse_target(query)
+        data = self.__parse_target(query)
         exec_target = exec_tracker.new_item(data)
         candidates += exec_tracker.get_items_containing("name", data[0])
 
         # Find the best candidate, if one exists
-        best_candidate = self._get_best_candidate(exec_target, candidates, exec_tracker)
+        best_candidate = self.__get_best_candidate(exec_target, candidates, exec_tracker)
         if best_candidate == None:
             best_candidate = exec_target
             print("New exec pathway:", best_candidate.data["name"], "->", best_candidate.data["targets"])
@@ -105,7 +105,7 @@ class Execute(Command):
             io_utils.pseudo_input(command)
             sleep(0.1)
 
-    def _get_best_candidate(self, exec_target, candidates, exec_tracker):
+    def __get_best_candidate(self, exec_target, candidates, exec_tracker):
         """ Gets the best exec candidate with matching or near-matching targets, if one exists. Returns None otherwise. """
         max_freq = exec_tracker.get_max_of_col("frequency")
 
@@ -127,12 +127,12 @@ class Execute(Command):
         best_candidate = exec_tracker.get_best_match(exec_target, candidates, 0.1, compare_method = compare_method)
         return best_candidate
 
-    def _increment_freq(self, item_1, item_2):
+    def __increment_freq(self, item_1, item_2):
         """ Updates the exec item's frequency. """
         item_1.data["frequency"] += 1
         return item_1
 
-    def parse_target(self, target):
+    def __parse_target(self, target):
         targets = target.split()[1:]
 
         self.force_context = False

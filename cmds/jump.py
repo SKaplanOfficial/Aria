@@ -70,32 +70,32 @@ class Jump(Command):
         target_jump = jump_tracker.new_item([current_time, current_time, 1, target_destinations])
 
         # Find the best candidate, if one exists
-        best_candidate = self._get_best_candidate(target_jump, candidates, jump_tracker)
+        best_candidate = self.__get_best_candidate(target_jump, candidates, jump_tracker)
         if best_candidate == None:
             best_candidate = jump_tracker.new_item([current_time, current_time, 0, target_jump.data["targets"]])
             jump_tracker.add_item(best_candidate)
 
         # Attempt to make jump(s)
-        completion_status = self._jump(best_candidate, origin)
+        completion_status = self.__jump(best_candidate, origin)
 
         # Report status and update tracker items as necessary
         if completion_status[0] == 0:
             # The jump was entirely successful, update the frequency and time of the item
             if origin in [0, 1]:
                 io_utils.sprint("Here you go!")
-            self._update_jump(best_candidate, current_time)
+            self.__update_jump(best_candidate, current_time)
         elif completion_status[0] == -1 and origin in [0, 1]:
             # Some parts of the jump failed
-            self._report_failures(completion_status[2])
+            self.__report_failures(completion_status[2])
         else:
             # The entire jump failed, remove the broken item
             if origin in [0, 1]:
-                self._report_failures(completion_status[2])
-            self._remove_broken_jump(best_candidate, jump_tracker)
+                self.__report_failures(completion_status[2])
+            self.__remove_broken_jump(best_candidate, jump_tracker)
         
         jump_tracker.save_data()
 
-    def _get_best_candidate(self, target_jump, candidates, jump_tracker):
+    def __get_best_candidate(self, target_jump, candidates, jump_tracker):
         """ Gets the best candidate jump with matching or near-matching targets, if one exists. Returns None otherwise. """
         max_freq = jump_tracker.get_max_of_col("frequency")
 
@@ -115,7 +115,7 @@ class Jump(Command):
         best_candidate = jump_tracker.get_best_match(target_jump, candidates, 0.1, compare_method = weigh_freq)
         return best_candidate
 
-    def _jump(self, best_candidate, origin):
+    def __jump(self, best_candidate, origin):
         """ Attempts to open the destinations associated with the best candidate. Returns 0 if all jumps succeeded, -1 if some jumps failed while others succeeded, and 1 if all jumps failed. """
         successes = []
         failures = []
@@ -144,13 +144,13 @@ class Jump(Command):
         
         return overall_status, successes, failures
 
-    def _update_jump(self, jump_item, current_time):
+    def __update_jump(self, jump_item, current_time):
         """ Updates the jump item's time range and frequency. """
         jump_item.data["start_time"] += (current_time - jump_item.data["start_time"]) * 0.01
         jump_item.data["end_time"] += (current_time - jump_item.data["end_time"]) * 0.01
         jump_item.data["frequency"] += 1
 
-    def _report_failures(self, failures):
+    def __report_failures(self, failures):
         """ Reports the destinations that could not be jumped to. """
         if len(failures) > 1:
             io_utils.sprint("I was unable to complete jumps to " + str(len(failures)) + " destinations:")
@@ -159,7 +159,7 @@ class Jump(Command):
         else:
             io_utils.sprint("I was unable to complete the jump to " + failures[0] + ".")
 
-    def _remove_broken_jump(self, jump_item, jump_tracker):
+    def __remove_broken_jump(self, jump_item, jump_tracker):
         """ Removes jump entries that are no longer functional. """
         if (jump_item.data["frequency"] != 0):
             print("Found broken jump point, removing.")
