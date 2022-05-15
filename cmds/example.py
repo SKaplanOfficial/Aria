@@ -5,7 +5,7 @@ Last Updated: Version 0.0.1
 """
 
 from ariautils.command_utils import Command
-from ariautils import config_utils
+from ariautils import config_utils, io_utils
 
 class ExampleCommand(Command):
     info = {
@@ -34,7 +34,8 @@ class ExampleCommand(Command):
             "author": "Stephen Kaplan",
             "email": "stephen.kaplan@maine.edu",
             "website": "http://skaplan.io",
-        }
+        },
+        "info_version": "0.9.0",
     }
 
     def execute(self, query, origin):
@@ -45,6 +46,20 @@ class ExampleCommand(Command):
         else:
             config_utils.set("test", 123)
             print("Added config entry.")
+
+        print(config_utils.get(self.info["id"])["my_var"])
+
+    def configure(self):
+        if self.info["id"] not in config_utils.get_config():
+            io_utils.sprint("Please configure this")
+            config_utils.set(self.info["id"], {})
+
+        plugin_config = config_utils.get(self.info["id"])
+        if "my_var" not in config_utils.get(self.info["id"]):
+            print("Enter a value for my_var: ", end="")
+            plugin_config["my_var"] = input()
+
+        config_utils.set(self.info["id"], plugin_config)
 
 # Init object for export
 command = ExampleCommand()
