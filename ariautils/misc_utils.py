@@ -11,7 +11,11 @@ import random
 import json
 import urllib.request
 import math
+import os
+import applescript
 from PIL import Image
+
+from . import io_utils
 
 def rselect(list):
     """ Selects and returns a random element in a list if there are any elements in the list. Otherwise, returns None. """
@@ -54,3 +58,37 @@ def mosaic(images, base_dim):
             img = img.resize((base_dim[0], width), Image.ANTIALIAS)
             new_image.paste(img, (base_dim[0]*c, base_dim[1]*r))
     return new_image
+
+def any_in_str(values, string):
+    return any([x in string for x in values])
+
+def any_in_arr(values, array):
+    return any([x in array for x in values])
+
+def all_in_str(values, string):
+    return all([x in string for x in values])
+
+def all_in_arr(values, array):
+    return all([x in array for x in values])
+
+def display_notification(content, title = "Aria", subtitle = "Operation complete.", sound = "Glass"):
+    """Display a desktop notification via the operating system's notification interface.
+    """
+    scpt = applescript.AppleScript('''
+        try
+            with timeout of 5 seconds
+                display notification "''' + content + '''" with title "''' + title + '''"
+                return 0
+            end timeout
+        on error
+            return 1
+        end try
+    ''')
+    attempts = 1
+    data = scpt.run()
+    print(data)
+    while (data == None or data == 1) and attempts < 3:
+        io_utils.dprint("Retrying ApplesSript...")
+        data = scpt.run()
+        attempts += 1
+    print("Timer complete." + str(data) + "!")
