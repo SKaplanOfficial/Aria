@@ -3,6 +3,8 @@
 
 import os, threading
 from time import sleep
+from pathlib import Path
+from typing import List, Union
 
 current_file = []
 previous_files = []
@@ -333,3 +335,38 @@ def exists(filepath):
 
 def is_empty(filepath):
     return os.stat(filepath).st_size == 0
+
+def list_files(dir_path: Union[str, os.PathLike], ignored_extensions: List[str] = [".pyc"], ignored_strings: List[str] = ["__"],
+               recursive: bool = False, show_dot_files: bool = False) -> List[Path]:
+    """Get a list of files in a directory.
+
+    :param path: The path of a directory to list the files of.
+    :type path: str or PathLike
+    :param ignored_extensions: A list of file extensions; files with those extensions will be excluded from the returned list of files, defaults to [".pyc"]
+    :type ignored_extensions: list, optional
+    :param ignored_strings: A list of strings; files containing any of those strings in their name will be excluded from the returned list of files, defaults to ["__"]
+    :type ignored_strings: list, optional
+    :param recursive: Whether to recursively include files in all subdirectories, defaults to False
+    :type recursive: bool, optional
+    :param show_dot_files: Whether to include dot files (such as .env) in the returned list of files, defaults to False
+    :type show_dot_files: bool, optional
+    :return: A list of files as Path objects.
+    :rtype: list[Path]
+    """
+    dir_path = Path(dir_path)
+    if not dir_path.is_dir():
+        return []
+
+    file_list = []
+    for sub_path in dir_path.iterdir():
+        if recursive and sub_path.is_dir:
+            file_list.extend(list_files(sub_path, ignored_extensions, ignored_strings, True, show_dot_files))
+
+        if show_dot_files == False and sub_path.suffix == "":
+            continue
+
+        if sub_path.suffix in ignored_extensions or any([string in sub_path.stem for string in ignored_strings]):
+            continue
+
+        file_list.append(sub_path)
+    return file_list

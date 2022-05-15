@@ -98,15 +98,14 @@ def load_all_commands():
         None
     """
     aria_path = config_utils.get("aria_path")
-    files = os.listdir(path=aria_path+"/cmds")
+    cmd_files = file_utils.list_files(aria_path+"/cmds", recursive = True)
     num_commands = 0
-    for f in files:
-        if "__" not in f and ".pyc" not in f and ".DS_Store" not in f:
-            cmd_name = f.replace(".py", "")
-            if cmd_name in config_utils.get("plugins").keys():
-                if config_utils.get("plugins")[cmd_name]:
-                    load_command(cmd_name)
-                    num_commands += 1
+    for file in cmd_files:
+        cmd_name = file.stem
+        if cmd_name in config_utils.get("plugins").keys():
+            if config_utils.get("plugins")[cmd_name]:
+                load_command(cmd_name)
+                num_commands += 1
     check_requirements()
     return num_commands
 
@@ -202,7 +201,7 @@ def cmd_from_template(str_in):
 
     try:
         cmd_module = importlib.import_module("cmds."+old_cmd_name)
-        old_cmd = cmd_module.Command()
+        old_cmd = cmd_module.command
         template = old_cmd.get_template(new_cmd_name)
 
         for key in template:
@@ -314,7 +313,7 @@ def enable_command_plugin(cmd_name):
     config_utils.save_global_config()
     module = importlib.import_module("cmds."+cmd_name)
     aria_path = config_utils.get("aria_path")
-    plugins[cmd_name] = module.Command()
+    plugins[cmd_name] = module.command
 
     print(cmd_name, "has been enabled.")
     return True
