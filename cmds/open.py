@@ -5,7 +5,7 @@ Last Updated: Version 0.0.2
 """
 
 from ariautils.command_utils import Command
-from ariautils import command_utils
+from ariautils import command_utils, context_utils
 
 class OpenApp(Command):
     info = {
@@ -49,14 +49,34 @@ class OpenApp(Command):
     }
 
     def execute(self, query, origin):
-        cmd_args = " ".join(query.split()[1:])
+        cmd_args = ""
 
-        print("open " + cmd_args)
-        command_utils.plugins["aria_terminal"].execute("open " + cmd_args, 2)
+        query_type = self.get_query_type(query)
+        
+
+        app_target = ""
+
+        if query_type is None:
+            pass
+        elif query_type in [22, 220, 2200]:
+            print("\nOpening...")
+            # "open these"
+            if query_type == 2200:
+                # "open these in ___"
+                app = query.split()[-1]
+                app = self.__expand_app_ref(app)
+                app_target = " -a " + app.replace(" ", "&")
+
+            selected_items = context_utils.get_selected_items()
+            if selected_items != None:
+                for item in selected_items:
+                    command_utils.plugins["aria_terminal"].execute("open" + app_target + " " + item.replace(" ", "&"), 2)
+        else:
+            cmd_args = " ".join(query.split()[1:])
+            command_utils.plugins["aria_terminal"].execute("open " + cmd_args, 2)
 
         target = []
         parts = cmd_args.split()
-        print(parts)
         quote_open = False
         for index, part in enumerate(parts):
             if "-" not in part:
@@ -72,13 +92,56 @@ class OpenApp(Command):
 
 
         target = "\ ".join(parts)
-        print(target)
         # Pseudo-jump to target to track the app usage
         command_utils.plugins["aria_jump"].execute("j "+target.strip(), 3)
+
+    def __expand_app_ref(self, app_ref):
+        ref_map = {
+            "vscode": "Visual Studio Code",
+            "msg": "Messages", "msgs": "Messages",
+            "mc": "Minecraft",
+            "browser": "Safari",
+            "acrobat": "Adobe Acrobat",
+            "msw": "Microsoft Word",
+            "mse": "Microsoft Excel",
+            "msp": "Microsoft Powerpoint",
+            "ps": "Adobe Photoshop 2022",
+            "ind": "Adobe InDesign 2022",
+            "ai": "Adobe Illustrator 2022",
+            "qt": "Quicktime Player",
+        }
+
+        # Exact match to known shorthand form
+        if app_ref in ref_map:
+            return ref_map[app_ref]
+
+        # Partial match to app name
+        values = list(ref_map.values())
+        values.extend(context_utils.get_app_list())
+        for value in values:
+            if app_ref in value.lower():
+                return value
+
+        # No match, keep the ref as-is
+        return app_ref
 
     def get_query_type(self, query):
         parts = query.split()
         if parts[0] in ["open"]:
+            # Query contains a direct reference to vscode
+            # TODO: Add 20
+            if "that" in query:
+                # Query is along the lines of "open that in vscode"
+                return 21
+
+            if "this" in query or "these" in query:
+                # Query is along the lines of "open this/these in vscode"
+                if "Finder" in context_utils.previous_apps or "Finder" in context_utils.current_app:
+                    # Finder is open
+                    if "in" in query:
+                        return 2200
+                    return 220
+                return 22
             return 10
         return 0
 
