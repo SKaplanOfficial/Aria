@@ -7,6 +7,8 @@ Last Updated: Version 0.0.2
 from ariautils.command_utils import Command
 from ariautils import command_utils
 
+from .terminal import Command
+
 class OpenApp(Command):
     info = {
         "title": "App",
@@ -15,7 +17,7 @@ class OpenApp(Command):
         'id': "aria_app",
         "version": "1.0.0",
         "description": """
-            This command opens an application from the system Applications folder.
+            This command opens applications from the system Applications folder.
         """,
         "requirements": {
             "aria_open": "1.0.0",
@@ -75,7 +77,6 @@ class OpenApp(Command):
                 return 0
             else:
                 # The target is probably an app -- handle it
-                print("hi")
                 return 20
         return 0
 
