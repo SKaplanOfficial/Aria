@@ -32,7 +32,7 @@ class Note(Command):
             # Aria current checks for exact match versions and displays warnings when the versions are at all different.
             # Support for Semantic Versioning and associated control mechanisms will be added in a future release.
             # Custom commands should still utilize SemVer despite it not being enforced currently.
-            'aria_terminal': '1.0.0',
+            'aria_core_terminal': '1.0.0',
         },
         "extensions": {
             # Optional.
@@ -141,7 +141,7 @@ class Note(Command):
 
             path = path.replace(" ", "&")
 
-            command_utils.plugins["aria_terminal"].execute("open -a Textedit " + path, 2)
+            command_utils.plugins["aria_core_terminal"].execute("open -a Textedit " + path, 2)
 
 
     def invocation(self, query):

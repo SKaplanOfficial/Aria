@@ -5,7 +5,7 @@ Last Updated: Version 0.0.2
 """
 
 from ariautils.command_utils import Command
-from ariautils import command_utils, context_utils
+from ariautils import command_utils, context_utils, io_utils
 
 class OpenApp(Command):
     info = {
@@ -18,7 +18,7 @@ class OpenApp(Command):
             This command opens applications, folders, files, and websites.
         """,
         "requirements": {
-            "aria_jump": "1.0.0",
+            "aria_core_terminal": "1.0.0",
         },
         "extensions": {
             "aria_app": "1.0.0",
@@ -49,16 +49,9 @@ class OpenApp(Command):
     }
 
     def execute(self, query, origin):
-        cmd_args = ""
-
         query_type = self.get_query_type(query)
-        
-
         app_target = ""
-
-        if query_type is None:
-            pass
-        elif query_type in [22, 220, 2200]:
+        if query_type in [22, 220, 2200]:
             print("\nOpening...")
             # "open these"
             if query_type == 2200:
@@ -70,10 +63,15 @@ class OpenApp(Command):
             selected_items = context_utils.get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                    command_utils.plugins["aria_terminal"].execute("open" + app_target + " " + item.replace(" ", "&"), 2)
+                    command_utils.plugins["aria_core_terminal"].execute("open" + app_target + " " + item.replace(" ", "&"), 2)
+        elif query_type == 10:
+            io_utils.sprint("Opening " + query[5:] + "...")
+            query = query[:5] + "-a " + query[5:]
+            cmd_args = " ".join(query.split()[1:])
+            command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
         else:
             cmd_args = " ".join(query.split()[1:])
-            command_utils.plugins["aria_terminal"].execute("open " + cmd_args, 2)
+            command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
 
         target = []
         parts = cmd_args.split()
@@ -128,6 +126,10 @@ class OpenApp(Command):
     def get_query_type(self, query):
         parts = query.split()
         if parts[0] in ["open"]:
+            if ("/") in query:
+                # File path
+                return 11
+
             # Query contains a direct reference to vscode
             # TODO: Add 20
             if "that" in query:
@@ -142,7 +144,7 @@ class OpenApp(Command):
                         return 2200
                     return 220
                 return 22
-            return 10
+            return 10 # App
         return 0
 
     def get_template(self, new_cmd_name):
