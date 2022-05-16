@@ -9,12 +9,13 @@ import threading
 import time
 import argparse
 
+from datetime import datetime
 from pathlib import Path
 
 from ariautils import command_utils, config_utils, context_utils, io_utils
 
 if __name__ == '__main__':
-    # Set up commandline argument parsing
+    # Parse commandline arguments
     arg_parser = argparse.ArgumentParser(description="A virtual assistant.")
     arg_parser.add_argument("--input", type = str, help = "Input data for Aria to analyze.")
     arg_parser.add_argument("--cmd", type = str, help = "A command to be run when Aria starts.")
@@ -35,11 +36,10 @@ if __name__ == '__main__':
         print(input_path.parts)
 
     num_commands = command_utils.load_all_commands()
-    print("Loaded", num_commands, "command plugins.")
+    io_utils.dprint("Loaded " + str(num_commands) + " command plugins.")
 
 def parse_input(str_in):
-    """
-    Compares an input string against each intent checker, then runs the best fit command.
+    """Compares an input string against each intent checker, then runs the best fit command.
 
     Parameters:
         str_in : str - A command (and any arguments) to be run.
@@ -150,11 +150,12 @@ def parse_input(str_in):
                         pass
 
 def aria_loop():
-    """ Runs the main command input loop. """
+    """Runs the main command input loop.
+    """
     while context_utils.looping:
-        if len(io_utils.waitlist) > 0:
-            pseudo_command = io_utils.waitlist.pop()
-            run_inputs(pseudo_command)
+        if len(io_utils.query_queue) > 0 and io_utils.query_queue[0].get_exec_time() <= datetime.now():
+            io_utils.query_queue.sort()
+            run_query(io_utils.dequeue())
         elif io_utils.cmd_entered:
             str_in = io_utils.input_buffer
             io_utils.input_buffer = ""
@@ -164,7 +165,10 @@ def aria_loop():
                 print("Current Context: ", context_utils.current_context.data, "\n\n")
                 print("Context History: ", context_utils.current_context.data, "\n", "-"*25, "\n\n")
             else:
-                run_inputs(str_in)
+                query_strings = str_in.split(",")
+                for str in query_strings:
+                    new_query = io_utils.Query(str)
+                    io_utils.enqueue(new_query)
 
             context_utils.previous_input = str_in
             io_utils.last_entered = str_in
@@ -176,31 +180,18 @@ def aria_loop():
                 io_utils.detect_typed_input()
 
 
-def run_inputs(str_in):
-    """
-    Runs inputs supplied as a string.
-    
-    Parameters:
-        str_in : str - One or more commands to be run, separated by " && ".
+def run_query(query: io_utils.Query) -> None:
+    """Executes a query.
 
-    Returns:
-        None
+    :param query: The query to be executed.
+    :type query: io_utils.Query
     """
-    current_str = str_in
-    remaining = str_in
-
-    while remaining:
-        if " && " in remaining:
-            current_str = remaining[0:remaining.index("&&")-1]
-            remaining = remaining[remaining.index("&&")+3:]
-        else:
-            current_str = remaining
-            remaining = ""
-        parse_input(current_str)
+    parse_input(query.get_content())
 
 
 def context_loop():
-    """ Updates the context tracker once a second. """
+    """Updates the context tracker once a second.
+    """
     while context_utils.looping:
         context_utils.update_context()
         time.sleep(1)
@@ -213,7 +204,7 @@ if __name__ == '__main__':
 
     if args.cmd is not None:
         # Run a command supplied via commandline args
-        run_inputs(args.cmd)
+        run_query(args.cmd)
 
         if args.close:
             # Close after command execution

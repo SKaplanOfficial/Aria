@@ -24,7 +24,7 @@ class TimerCommand(Command):
     info = {
         "title": "Timers",
         "repository": "https://github.com/SKaplanOfficial/Aria",
-        "documentation_link": "https://github.com/SKaplanOfficial/Aria",
+        "documentation_link": "https://github.com/SKaplanOfficial/Aria/documentation",
         'id': "aria_core_timer",
         "version": "1.0.0",
         "description": """
