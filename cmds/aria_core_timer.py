@@ -4,13 +4,13 @@ import threading
 import re
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, Iterable, List, Mapping, Union, Any
+from typing import Callable, Iterable, List, Literal, Mapping, Union, Any, Tuple, Dict
 
 from ariautils.command_utils import Command
 from ariautils import io_utils
 from ariautils.misc_utils import any_in_str, display_notification
 
-class RunningStates(Enum):
+class RunningState(Enum):
     """Levels of running states for timers in Aria.
     """
     RUNNING = 1
@@ -67,48 +67,52 @@ class TimerCommand(Command):
 
     # Stacks of timer IDs to simplify actions acting on "last" timer of given state
     stacks = {
-        RunningStates.RUNNING: [],
-        RunningStates.PAUSED: [],
-        RunningStates.STOPPED: [],
-        RunningStates.FINISHED: [],
+        RunningState.RUNNING: [],
+        RunningState.PAUSED: [],
+        RunningState.STOPPED: [],
+        RunningState.FINISHED: [],
     }
 
     def execute(self, query, _origin):
+        # Operate on query using method specified for the query type
         query_type = self.get_query_type(query, True)
         query_type[1]["func"](query, query_type[1]["args"])
 
-    def run(self, query, operation, args):
-        operation(query, args)
+    def __parse_name_reminder_args(self, name_args: List[str], reminder_args: List[Tuple[str, ...]]) -> str:
+        """Internal method to obtain the name string of a timer or reminder from the pasrsed data of an input query.
 
-    def __parse_name_reminder_args(self, name_args, reminder_args):
+        :param name_args: A list of strings making up the direct name of a timer. Not all timers will have a name string specified via the input query, or they may have an implicit name specified in the form of a reminder. Thus, name_args may be an empty list.
+        :type name_args: List[str]
+        :param reminder_args: A list of tuples that define the name of a reminder-type timer. The first value in the tuple indicates the phrasing of the query (e.g. reminder 'about' vs. 'for'), while the remaining values form the name of the timer.
+        :type reminder_args: List[Tuple[str, ...]]
+        :return: The timer name specified in the input query.
+        :rtype: str
+        """
         if reminder_args != []:
             return reminder_args[0][1]
         elif name_args != []:
             return name_args[0]
         return "Unnamed Timer"
 
-    def __new_timer(self, query, args):
-        duration = self.__parse_duration_args(args["duration"])
-        name = self.__parse_name_reminder_args(args["name"], args["reminder"])
-        id = len(self.timers)
+    def __get_target_timers(self, target: Literal["last", "all", "named"], of_state: RunningState, parsed_args: Dict[str, List[Union[str, Tuple[str, ...]]]]) -> List[Dict[int, Dict[str, Any]]]:
+        """Internal method to obtain a list of timers in the specified state, adjusted based on the value of target.
 
-        if args["reminder"] != []:
-            io_utils.sprint("Alright, I'll remind you " + args["reminder"][0][0] + " " + args["reminder"][0][1] + " in " + self.timedelta_str(duration))
-        elif args["name"] != []:
-            io_utils.sprint("Alright, I made a new timer with the name '" + args["name"][0] + "' and ID " + str(id) + ". It's scheduled to go off in " + self.timedelta_str(duration))
-        else:
-            io_utils.sprint("Starting a new timer for " + self.timedelta_str(duration))
-
-        self.start_timer(duration = duration, name = name, function = self.on_timer_finish, args = (id, ), track = True)
-
-    def __get_target_timers(self, target_str, of_state, parsed_args):
+        :param target: Specifier for which timer(s) are desired, directs this method where to obtain timers from. The value of this must be "last", "all", or "named". A value of "last" indicates that the last timer that entered the state specified by of_state should be returned. A value of "all" indicates that all timers in the specified state should be returned. A value of "named" indicates that the user provided a name in their query, explicitly or implicitly, and the timer with that name should be returned.
+        :type target: Literal["last", "all", "named"]
+        :param of_state: The state that all returned timer(s) are currently in.
+        :type of_state: RunningState
+        :param parsed_args: A dictionary of lists containing parsed information from the query. Parsing occurs in self.get_query_type().
+        :type parsed_args: Dict[str, List[Union[str, Tuple[str, ...]]]]
+        :return: A list of timers in dictionary form.
+        :rtype: List[Dict[int, Dict[str, Any]]]
+        """
         timers = []
-        if target_str == "last":
+        if target == "last":
             id = self.stacks[of_state][-1]
             timers.append(self.get_timer_by_id(id))
-        elif target_str == "all":
+        elif target == "all":
             timers = self.get_timers_by_state(of_state)
-        elif target_str == "named":
+        elif target == "named":
             print(parsed_args["name"])
             print(parsed_args["reminder"])
             if parsed_args["name"] != []:
@@ -120,22 +124,64 @@ class TimerCommand(Command):
                 timers.append(named_timer)
         return timers
 
-    def __pause_timer(self, query, args):
-        timers = self.__get_target_timers(args[1], RunningStates.RUNNING, args[0])
+    def __new_timer(self, _query: str, args: Dict[str, List[Union[str, Tuple[str, ...]]]]) -> None:
+        """Internal method that interfaces between query types aiming to create new timers and the public start_timer method. This method calls the start_timer method after extracting data from the query and providing feedback to users; it does not create a new timer itself.
+ 
+        :param query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type query: str
+        :param args: A dictionary of lists containing parsed information from the query. Parsing occurs in self.get_query_type().
+        :type args: Dict[str, List[Union[str, Tuple[str, ...]]]]
+        """
+        duration = self.__parse_duration_args(args["duration"])
+        name = self.__parse_name_reminder_args(args["name"], args["reminder"])
+        id = len(self.timers)
+
+        if args["reminder"] != []:
+            io_utils.sprint("Alright, I'll remind you " + args["reminder"][0][0] + " " + args["reminder"][0][1] + " in " + self.timedelta_str(duration))
+        elif args["name"] != []:
+            io_utils.sprint("Alright, I made a new timer with the name '" + args["name"][0] + "' and ID " + str(id) + ". It's scheduled to go off in " + self.timedelta_str(duration))
+        else:
+            io_utils.sprint("Starting a new timer for " + self.timedelta_str(duration))
+
+        self.start_timer(duration = duration, name = name, function = self.__on_timer_finish, args = (id, ), track = True)
+
+    def __pause_timer(self, _query: str, args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]) -> None:
+        """Wraps the public pause_timer method. This method calls the pause_timer method after extracting data from the query, then provides feedback to the user; it does not pause running timers itself.
+
+        :param _query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type _query: str
+        :param args: A list containing a dictionary of parsed values and a specifier for the type of target this command should act on.
+        :type args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]
+        """
+        timers = self.__get_target_timers(args[1], RunningState.RUNNING, args[0])
         for timer in timers:
             self.pause_timer(timer)
             time_remaining = self.timedelta_str(timer["duration"] - timer["elapsed"])
             io_utils.sprint("Paused timer with ID " + str(timer["id"]) + "  and name '" + timer["name"] + "'. It has " + time_remaining + " remaining.")
 
-    def __continue_timer(self, query, args):
-        timers = self.__get_target_timers(args[1], RunningStates.PAUSED, args[0])
+    def __continue_timer(self, _query: str, args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]) -> None:
+        """Wraps the public continue_timer method. This method calls the continue_timer method after extracting data from the query, then provides feedback to the user; it does not continue paused timers itself.
+
+        :param _query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type _query: str
+        :param args: A list containing a dictionary of parsed values and a specifier for the type of target this command should act on.
+        :type args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]
+        """
+        timers = self.__get_target_timers(args[1], RunningState.PAUSED, args[0])
         for timer in timers:
             self.continue_timer(timer)
             time_remaining = self.timedelta_str(timer["duration"] - timer["elapsed"])
             io_utils.sprint("Resumed timer with ID " + str(timer["id"]) + "  and name '" + timer["name"] + "'. It has " + time_remaining + " remaining.")
 
-    def __stop_timer(self, query, args):
-        timers = self.__get_target_timers(args[1], RunningStates.RUNNING, args[0])
+    def __stop_timer(self, _query: str, args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]) -> None:
+        """Wraps the public stop_timer method. This method calls the stop_timer method after extracting data from the query, then provides feedback to the user; it does not stop running timers itself.
+
+        :param _query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type _query: str
+        :param args: A list containing a dictionary of parsed values and a specifier for the type of target this command should act on.
+        :type args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]
+        """
+        timers = self.__get_target_timers(args[1], RunningState.RUNNING, args[0])
         for timer in timers:
             self.stop_timer(timer)
             if "elapsed" in timer:
@@ -144,26 +190,47 @@ class TimerCommand(Command):
                 time_remaining = self.timedelta_str(timer["duration"] - (datetime.now() - timer["start_time"]))
             io_utils.sprint("Stopped timer with ID " + str(timer["id"]) + "  and name '" + timer["name"] + "'. It had " + time_remaining + " remaining.")
 
-    def __repeat_timer(self, query, args):
-        timers = self.__get_target_timers(args[1], RunningStates.FINISHED, args[0])
+    def __repeat_timer(self, _query: str, args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]) -> None:
+        """Repeats a finished timer by creating a new timer with the same information (i.e. duration, name, function, and args) as the previous one.
+
+        :param _query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type _query: str
+        :param args: A list containing a dictionary of parsed values and a specifier for the type of target this command should act on.
+        :type args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]
+        """
+        timers = self.__get_target_timers(args[1], RunningState.FINISHED, args[0])
         for timer in timers:
-            if timer["state"] == RunningStates.FINISHED:
-                self.stacks[RunningStates.FINISHED].remove(timer["id"])
+            if timer["state"] == RunningState.FINISHED:
+                self.stacks[RunningState.FINISHED].remove(timer["id"])
                 self.start_timer(duration = timer["duration"], name = timer["name"], function = timer["function"], args = (id, ), track = True)
                 time_remaining = self.timedelta_str(timer["duration"])
                 io_utils.sprint("Restarted timer with ID " + str(timer["id"]) + "  and name '" + timer["name"] + "'. It has " + time_remaining + " remaining.")
 
-    def __extend_timer(self, query, args):
+    def __extend_timer(self, _query: str, args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]) -> None:
+        """Wraps the public extend_timer method. This method calls the extend_timer method after extracting data from the query, then provides feedback to the user; it does not extend running timers itself.
+
+        :param _query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type _query: str
+        :param args: A list containing a dictionary of parsed values and a specifier for the type of target this command should act on.
+        :type args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]
+        """
         extension_duration = self.__parse_duration_args(args[0]["duration"])
-        timers = self.__get_target_timers(args[1], RunningStates.RUNNING, args[0])
+        timers = self.__get_target_timers(args[1], RunningState.RUNNING, args[0])
         for timer in timers:
-            if timer["state"] == RunningStates.RUNNING:
+            if timer["state"] == RunningState.RUNNING:
                 self.extend_timer(timer, extension_duration)
                 time_remaining = self.timedelta_str(timer["duration"])
                 io_utils.sprint("Extended timer with ID " + str(timer["id"]) + "  and name '" + timer["name"] + "'. It has " + time_remaining + " remaining.")
         
-    def __list_timers(self, query, args):
-        for state in RunningStates:
+    def __list_timers(self, _query: str, args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]) -> None:
+        """Lists all timers, organized by their running state.
+
+        :param _query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type _query: str
+        :param args: A list containing a dictionary of parsed values and a specifier for the type of target this command should act on.
+        :type args: List[Union[Dict[str, List[Union[str, Tuple[str, ...]]]], str]]
+        """
+        for state in RunningState:
             timers = self.get_timers_by_state(state)
             if timers == []:
                 io_utils.sprint("You don't have any " + state.name.lower() + " timers.")
@@ -174,7 +241,15 @@ class TimerCommand(Command):
                 for timer in timers:
                     io_utils.sprint(timer["name"] + " with ID " + str(timer["id"]) + ".")
 
-    def __parse_duration_args(self, duration_args):
+    def __parse_duration_args(self, duration_args: List[Tuple[str, ...]]) -> timedelta:
+        """Constructs a timedelta object from the values and units mentioned in the user's query.
+
+        :param duration_args: A list of tuples specifying amounts and units of time. The first value is a number (as a string), followed by some representation of a unit of time. Each tuple represents one pair of number and time unit in the user's query. The total duration is the sum of the durations specified by each tuple.
+        :type duration_args: List[Tuple[str, ...]]
+        :return: A timedelta object representing the duration of time represented in the user's query.
+        :rtype: timedelta
+        """
+        print(duration_args)
         s = m = h = d = w = 0
         for re_match in duration_args:
             for index, group in enumerate(re_match):
@@ -200,7 +275,14 @@ class TimerCommand(Command):
 
         return timedelta(seconds=s, minutes=m, hours=h, days=d, weeks=w)
 
-    def timedelta_str(self, timedelta):
+    def timedelta_str(self, timedelta: timedelta) -> str:
+        """Creates a string from a timedelta object of the form "A days, B hours, C minutes, and D seconds" where D may be an integer or a float. If the full duration of the timedelta can be captured by one unit, then the string will be of the form "A days" or "C minutes", and so on.
+
+        :param timedelta: The timedelta to create a string representation of.
+        :type timedelta: timedelta
+        :return: The string representing of the timedelta duration.
+        :rtype: str
+        """
         string = str(timedelta).replace(":", " hour ", 1).replace(":", " minute ", 1) + " second "
         parts = string.split()
 
@@ -226,10 +308,26 @@ class TimerCommand(Command):
         string = " ".join(parts)
         return string
 
-    def get_timer_by_id(self, id):
+    def get_timer_by_id(self, id: int) -> Dict[int, Dict[str, Any]]:
+        """Gets the information for the timer whose ID matches the specified id.
+
+        :param id: The ID of the timer to obtain the information of.
+        :type id: int
+        :return: The dictionary representation of the timer with the specified ID.
+        :rtype: Dict[int, Dict[str, Any]]
+        """
         return self.timers[id]
 
-    def get_timer_by_name(self, name, require_exact = False):
+    def get_timer_by_name(self, name, require_exact = False) -> Dict[int, Dict[str, Any]]:
+        """Gets the information for the timer whose name matches the specified name.
+
+        :param name: The name of the timer to obtain the information of.
+        :type name: str
+        :param require_exact: Whether to require an exact match or accept a partial match to the timer's true name, defaults to False.
+        :type require_exact: bool, optional
+        :return: The dictionary representation of the timer with the specified ID.
+        :rtype: Dict[int, Dict[str, Any]]
+        """
         for timer in self.timers.values():
             if require_exact:
                 if name == timer["name"]:
@@ -238,10 +336,34 @@ class TimerCommand(Command):
                 if name in timer["name"]:
                     return timer
 
-    def get_timers_by_state(self, state):
+    def get_timers_by_state(self, state: RunningState) -> List[Dict[int, Dict[str, Any]]]:
+        """Gets a list of timers in the specified state.
+
+        :param state: The state that timers must be in to be included in the returned list.
+        :type state: RunningState
+        :return: A list of dictionary representation of all timers currently in the specified state.
+        :rtype: List[Dict[int, Dict[str, Any]]]
+        """
         return [self.timers[t] for t in self.timers if self.timers[t]["state"] is state]
 
     def start_timer(self, duration: timedelta, name: str = "New Timer", function: Callable[..., Any] = None, args: Union[Iterable, None] = (), kwargs: Union[Mapping[str, Any], None] = {}, track: bool = False) -> threading.Timer:
+        """Creates a new timer and starts it in a separate Timer thread.
+
+        :param duration: The interval of the Timer thread before its target function is called.
+        :type duration: timedelta
+        :param name: The name of the timer, defaults to "New Timer".
+        :type name: str, optional
+        :param function: The function that the Timer thread will call upon completion, defaults to None.
+        :type function: Callable[..., Any], optional
+        :param args: The arguments to pass to the Timer thread's target function upon completion of the timer, defaults to ().
+        :type args: Union[Iterable, None], optional
+        :param kwargs: The keyword arguments to pass to the Timer thread's target function, defaults to {}.
+        :type kwargs: Union[Mapping[str, Any], None], optional
+        :param track: Whether to track this timer in the aria_core_timer command's list of timers, defaults to False. Only timers that users are aware of should be tracked.
+        :type track: bool, optional
+        :return: A reference to the Timer thread.
+        :rtype: threading.Timer
+        """
         timer_thread = threading.Timer(interval = duration.total_seconds(), function = function, args = args, kwargs = kwargs)
         if track:
             id = len(self.timers)
@@ -254,36 +376,53 @@ class TimerCommand(Command):
                     "callback": function,
                     "args": args,
                     "kwargs": kwargs,
-                    "state": RunningStates.RUNNING,
+                    "state": RunningState.RUNNING,
             }
-            self.stacks[RunningStates.RUNNING].append(id)
+            self.stacks[RunningState.RUNNING].append(id)
         timer_thread.start()
         return timer_thread
 
-    def pause_timer(self, timer) -> None:
-        if timer["state"] == RunningStates.RUNNING:
+    def pause_timer(self, timer: Dict[int, Dict[str, Any]]) -> None:
+        """Pauses a currently running timer.
+
+        :param timer: The dictionary object of the timer to pause.
+        :type timer: Dict[int, Dict[str, Any]]
+        """
+        if timer["state"] == RunningState.RUNNING:
             if "elapsed" in timer:
                 timer["elapsed"] = timer["elapsed"] + (datetime.now() - timer["start_time"])
             else:
                 timer["elapsed"] = datetime.now() - timer["start_time"]
-            timer["state"] = RunningStates.PAUSED
+            timer["state"] = RunningState.PAUSED
             timer["thread"].cancel()
             timer["thread"].join()
-            self.stacks[RunningStates.RUNNING].remove(timer["id"])
-            self.stacks[RunningStates.PAUSED].append(timer["id"])
+            self.stacks[RunningState.RUNNING].remove(timer["id"])
+            self.stacks[RunningState.PAUSED].append(timer["id"])
 
-    def continue_timer(self, timer) -> None:
-        if timer["state"] == RunningStates.PAUSED:
+    def continue_timer(self, timer: Dict[int, Dict[str, Any]]) -> None:
+        """Resumes a currently paused timer.
+
+        :param timer: The dictionary object of the timer to resume.
+        :type timer: Dict[int, Dict[str, Any]]
+        """
+        if timer["state"] == RunningState.PAUSED:
             remaining_duration = (timer["duration"] - timer["elapsed"])
             new_thread = threading.Timer(interval = remaining_duration.total_seconds(), function = timer["callback"], args = timer["args"], kwargs = timer["kwargs"])
             timer["thread"] = new_thread
             timer["start_time"] = datetime.now()
-            timer["state"] = RunningStates.RUNNING
+            timer["state"] = RunningState.RUNNING
             new_thread.start()
-            self.stacks[RunningStates.PAUSED].remove(timer["id"])
-            self.stacks[RunningStates.RUNNING].append(timer["id"])
+            self.stacks[RunningState.PAUSED].remove(timer["id"])
+            self.stacks[RunningState.RUNNING].append(timer["id"])
 
-    def extend_timer(self, timer, extension_duration) -> None:
+    def extend_timer(self, timer: Dict[int, Dict[str, Any]], extension_duration: timedelta) -> None:
+        """Extends the duration of a currently running timer.
+
+        :param timer: The dictionary object of the timer to extend.
+        :type timer: Dict[int, Dict[str, Any]]
+        :param extension_duration: The duration to extend the timer by.
+        :type extension_duration: timedelta
+        """
         total_duration = timer["duration"] + extension_duration
         elapsed_time = datetime.now() - timer["start_time"]
         remaining_duration = total_duration - elapsed_time
@@ -294,27 +433,38 @@ class TimerCommand(Command):
         timer["duration"] = total_duration
         new_thread.start()
 
-    def stop_timer(self, timer) -> None:
-        if timer["state"] in [RunningStates.RUNNING, RunningStates.PAUSED]:
-            timer["state"] = RunningStates.STOPPED
+    def stop_timer(self, timer: Dict[int, Dict[str, Any]]) -> None:
+        """Stops a timer.
+
+        :param timer: The dictionary object of the timer to stop.
+        :type timer: Dict[int, Dict[str, Any]]
+        """
+        if timer["state"] in [RunningState.RUNNING, RunningState.PAUSED]:
+            timer["state"] = RunningState.STOPPED
             timer["thread"].cancel()
             timer["thread"].join()
 
-            if timer["id"] in self.stacks[RunningStates.RUNNING]:
-                self.stacks[RunningStates.RUNNING].remove(timer["id"])
-            if timer["id"] in self.stacks[RunningStates.PAUSED]:
-                self.stacks[RunningStates.PAUSED].remove(timer["id"])
-            if timer["id"] in self.stacks[RunningStates.STOPPED]:
-                self.stacks[RunningStates.STOPPED].append(timer["id"])
+            if timer["id"] in self.stacks[RunningState.RUNNING]:
+                self.stacks[RunningState.RUNNING].remove(timer["id"])
+            if timer["id"] in self.stacks[RunningState.PAUSED]:
+                self.stacks[RunningState.PAUSED].remove(timer["id"])
+            if timer["id"] in self.stacks[RunningState.STOPPED]:
+                self.stacks[RunningState.STOPPED].append(timer["id"])
 
-    def on_timer_finish(self, timer_id):
+    def __on_timer_finish(self, timer_id: int) -> None:
+        """Runs on completion of timers/reminders created via queries to the Timer command. This method does not run for timers created by external calls to this command's public methods; a separate callback method must be specified.
+
+        :param timer_id: The ID of the timer.
+        :type timer_id: int
+        """
         timer = self.timers[timer_id]
         io_utils.sprint("Timer complete: " + timer["name"])
-        self.stacks[RunningStates.RUNNING].remove(timer["id"])
-        self.stacks[RunningStates.FINISHED].append(timer["id"])
+        self.stacks[RunningState.RUNNING].remove(timer["id"])
+        self.stacks[RunningState.FINISHED].append(timer["id"])
         display_notification(content = "Hey")
 
-    def get_query_type(self, query, get_tuple = False):
+    def get_query_type(self, query: str, get_tuple: bool = False):
+        # Replace natural language time specifiers with corresponding amounts and time units
         current_time = datetime.now()
         if "the morn" in query:
             if current_time.hour < 6:
@@ -347,18 +497,9 @@ class TimerCommand(Command):
         query = re.sub(r' few ', " 3 ", query)
         query = re.sub(r' several ', " 7 ", query)
 
-        duration_args = re.compile(r' ([0-9]*\.?[0-9]+)[ ]?(second|sec|minute|min|moment|mom|hour|hr|day|week|month|mon|year|yr|s|m|h|d|w|y)').findall(query)
-        name_args = re.compile(r' (?:called|call|named|name|titled|title|labelled|label|designated|designation)(?: it | )([a-z0-9]+)(?: |$)').findall(query)
-        reminder_args = re.compile(r'(?:remind|tell|prompt|for)[a-z0-9 ]*(to|about|for) ([a-z ]*)(?: |$)').findall(query)
-        parsed_args = {
-            "duration": duration_args,
-            "name": name_args,
-            "reminder": reminder_args,
-        }
-
+        # Compute result of conditions used in multiple query types
         low_conf_time = any_in_str(["s", "m", "h", "d", "w", "y"], query)
         low_conf_extend = any_in_str(["add", "increase", "increment"], query)
-
         high_conf_time = any_in_str(["sec", "min", "mom", "hour", "hr", "day", "week", "mon", "year", "yr"], query)
         high_conf_start = any_in_str(["start", "begin", "set", "create", "new"], query)
         high_conf_pause = any_in_str(["pause", "halt", "adjourn", "suspend"], query)
@@ -368,6 +509,16 @@ class TimerCommand(Command):
         high_conf_restart = any_in_str(["restart", "start over", "start again", "run again", "redo", "reset", "repeat", "rerun", "replay"], query)
         high_conf_list = re.search(r'(?:(list|enumerat|display|show)[a-z ]*(timer))|(?:(what|which)[a-z ]*(timer))', query) != None
         high_conf_last = any_in_str(["last", "previous", "prev", "recent", "latest", "that"], query)
+
+        # Extract duration, name, and reminder information from query
+        duration_args = re.compile(r' ([0-9]*\.?[0-9]+)[ ]?(second|sec|minute|min|moment|mom|hour|hr|day|week|month|mon|year|yr|s|m|h|d|w|y)').findall(query)
+        name_args = re.compile(r' (?:called|call|named|name|titled|title|labelled|label|designated|designation)(?: it | )([a-z0-9]+)(?: |$)').findall(query)
+        reminder_args = re.compile(r'(?:remind|tell|prompt|for)[a-z0-9 ]*(to|about|for) ([a-z ]*)(?: |$)').findall(query)
+        parsed_args = {
+            "duration": duration_args,
+            "name": name_args,
+            "reminder": reminder_args,
+        }
 
         # Define conditions and associated method for each execution pathway
         __query_type_map = {
