@@ -1,50 +1,49 @@
 """
-Terminal
+Terminal command for Aria.
 
-Last Updated: Version 0.0.1
+API
+===
+TerminalCommand: A class for executing terminal commands in Aria.
 """
 
+import os
 import re, subprocess
-from typing import Any, Union, Dict, Tuple
+from typing import Any, List, Union, Dict, Tuple
 
+from ariautils import config_utils
 from ariautils.command_utils import Command
-from ariautils.misc_utils import any_in_str
+from ariautils.io_utils import sprint
 
 class Terminal(Command):
+    """An Aria Command for executing terminal commands.
+    """
     info = {
         "title": "Run In Terminal",
         "repository": "https://github.com/SKaplanOfficial/Aria",
         'id': "aria_core_terminal",
         "version": "1.0.0",
-        # Description is required, but has no length limit.
         "description": """
-            This is an example of a custom command class for Aria.
-            All custom command classes should extend the base Command class and implement its required methods.
+            This command interfaces between Aria and the Unix terminal, allowing users to directly execute terminal commands.
         """,
-        "requirements": {
-
-        },
+        "requirements": {},
         "extensions": {
-            # Optional.
-            # List of other Aria commands that extend the features of this command.
-            # If one of these commands is installed and enabled, then this command utilizes it. Otherwise, this command still works with limited functionality.
-            # Use the same format as with requirements.
+            "aria_core_open": "1.0.0",
         },
         "purposes": [
             "run terminal command", "execute bash script"
         ],
         "targets": [
-            "note", "file", "doc", "example.txt", "./docs/notes/example.txt", "file named example", "todays note"
+            "terminal", "bash" "/bin/zsh"
         ],
         "keywords": [
             "aria", "command", "terminal", "command prompt"
         ],
         "example_usage": [
-            ("make a new note", "Request an example response."),
-            ("todays note", "Open today's daily note."),
-            ("note for tomorrow", "Open the daily note for tomorrow."),
-            ("show me yesterdays note", "Open the daily note from yesterday."),
-            ("open example.txt", "Open a note called example.txt."),
+            ("clear", "Clear the terminal window."),
+            ("python", "Open an interactive shell program such as Python."),
+            ("terminal echo example", "Run a terminal command in the default shell."),
+            ("bash echo example", "Run a terminal command in a specified shell such as Bash."),
+            ("zsh echo example", "Open a note called example.txt."),
         ],
         "contact_details": {
             "author": "Stephen Kaplan",
@@ -54,11 +53,22 @@ class Terminal(Command):
         "info_version": "0.9.0",
     }
 
-    def execute(self, query, origin):
+    def execute(self, query: str, _origin: int) -> None:
         query_type = self.get_query_type(query, True)
         query_type[1]["func"](query, query_type[1]["args"])
 
-    def default_shell(self, query, args):
+    def run_command(self, command_string: str, shell: bool = True, stdin: subprocess._FILE = None, stdout: subprocess._FILE = None, stderr: subprocess._FILE = None, cwd: Union[str, bytes, os.PathLike] = None, env: subprocess._ENV = None) -> int:
+        completion_status = subprocess.call(command_string, shell = shell, stdin = stdin, stdout = stdout, stderr = stderr, cwd = cwd, env = env)
+        return completion_status
+
+    def __default_shell(self, query: str, args: List[Union[Tuple[Union[str, Any], ...], Tuple[int, int]]]) -> None:
+        """Runs a command in the default shell, or opens the shell in interactive mode.
+
+        :param query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type query: str
+        :param args: Either an empty list or a list containing two entries: the group(0) of a REGEX match and the associated span.
+        :type args: List[Union[Tuple[Union[str, Any], ...], Tuple[int, int]]]
+        """
         if args != []:
             for tuple in args:
                 query = query[:tuple[0]] + tuple[1] + query[tuple[0]:]
@@ -66,46 +76,56 @@ class Terminal(Command):
         query = query.replace("terminal ", "")
         subprocess.call(query, shell=True)
 
-    def zsh(self, query, args):
-        query = query.replace("zsh ", "")
-        subprocess.call(query, shell=True, executable='/bin/zsh')
+    def __specified_shell(self, query: str, args: List[Union[Tuple[Union[str, Any], ...], Tuple[int, int]]]) -> None:
+        """Runs a command in a specified shell, or opens the shell in interactive mode. The shell is specified by index 0 of the REGEX match span tuple at index 1 of args.
 
-    def bash(self, query, args):
-        query = query.replace("bash ", "")
-        subprocess.call(query, shell=True, executable='/bin/bash')
+        :param query: The raw text of the user's query. Not currently used, but kept for future purposes.
+        :type query: str
+        :param args: A list containing two entries: the group(0) of a REGEX match and the associated span.
+        :type args: List[Union[Tuple[Union[str, Any], ...], Tuple[int, int]]]
+        """
+        query = query.replace(args[0] + " ", "")
+        subprocess.call(query, shell=True, executable='/bin/'+args[0])
+        if len(query) == args[1][1]:
+            # User exited interactive shell, welcome them back to Aria
+            sprint("Hello again, " + config_utils.get("user_name") + "!")
 
     def get_query_type(self, query: str, get_tuple: bool = False) -> Union[int, Tuple[int, Dict[str, Any]]]:
         has_macos_cmd = re.search(r'^(clear|cd|ls|du|df|mkdir|rm|rmdir|touch|cp|mv|history|chmod|chown|ps|top|kill|ping|whois|ssh|curl|scp|arp|ifconfig|traceroute|printenv|echo|export|grep|cat|less|head|nano|man|open|vim|afplay|cron|cmp|diff|diskutil|env|fdisk|ftp|groups|users|ipconfig|killall|launchctl|logout|md5|mkfile|mtree|net|netstat|openssl|pbcopy|pbs|pkill|pkgutil|reboot|shutdown|screen|sleep|softwareupdate|tail|vi|whoami|pwd|afconvert|apachectl|sftp|ffplay|flac|zip|unzip|xargs|wall)', query) != None
 
         has_third_party_cmd = re.search(r'^(git|brew|python|pip|ffmpeg|ffplay|python3|pydoc|black|pylint|autopep8|django|django-admin|mysql|docker|docker-compose|node|npm|php|perl|ruby|rust|rustc|gcc|cpp|c\+\+|f90|aws|code|emacs|youtube-dl)', query) != None
 
+        match_shell = re.search(r'(csh|ksh|tcsh|bash|dash|zsh)', query)
+        shell_args = [match_shell.group(0), match_shell.span()] if match_shell != None else []
+
         # Define conditions and associated method for each execution pathway
         __query_type_map = {
-            2001: { # Bash
-                "conditions": [query.startswith("bash "), len(query) > 5],
-                "func": self.bash,
-                "args": [],
-            },
-            2000: { # Zsh
-                "conditions": [query.startswith("zsh "), len(query) > 4],
-                "func": self.zsh,
-                "args": [],
+            3000: { # Specified Shell - High Confidence
+                "conditions": [match_shell != None and match_shell.span()[0] == 5, query.startswith("/bin/")],
+                "func": self.__specified_shell,
+                "args": shell_args,
             },
 
             1000: { # Direct Ref to This Command
                 "conditions": [query.startswith("terminal "), len(query) > 9],
-                "func": self.default_shell,
+                "func": self.__default_shell,
                 "args": [],
+            },
+
+            30: { # Specified Shell - Medium Confidence
+                "conditions": [match_shell != None and match_shell.span()[0] == 0],
+                "func": self.__specified_shell,
+                "args": shell_args,
             },
 
             2: { # Third Party Command
                 "conditions": [has_third_party_cmd],
-                "func": self.default_shell,
+                "func": self.__default_shell,
                 "args": [],
             },
             1: { # MacOS Command
                 "conditions": [has_macos_cmd],
-                "func": self.default_shell,
+                "func": self.__default_shell,
                 "args": [],
             },
         }
