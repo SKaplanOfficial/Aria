@@ -80,7 +80,7 @@ def get(key):
         Object - The json-serializable object stored at the target key.
     """
     if not load_global_config():
-        return
+        initial_setup()
     return config[key]
 
 def set(key, value):

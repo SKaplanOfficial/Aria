@@ -8,3 +8,4 @@ py_applescript==1.0.3
 requests==2.27.1
 selenium==4.1.5
 SpeechRecognition==3.8.1
+Pillow==9.1.0
