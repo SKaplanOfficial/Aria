@@ -1,10 +1,8 @@
 """A manager for Aria command modules. Only one CommandManager should be active at a time.
 """
 
-from calendar import c
 import importlib, os, re, threading, sys
-from json import load
-from . import command_utils, config_utils, io_utils, file_utils
+from . import command_utils, config_utils, file_utils
 
 plugins = dict()
 invocations = dict()

@@ -1,0 +1,10 @@
+appscript==1.2.0
+autocomplete==0.0.104
+markovify==0.9.4
+nltk==3.7
+nmap==0.0.1
+pdfkit==1.0.0
+py_applescript==1.0.3
+requests==2.27.1
+selenium==4.1.5
+SpeechRecognition==3.8.1

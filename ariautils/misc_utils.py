@@ -11,7 +11,6 @@ import random
 import json
 import urllib.request
 import math
-import os
 import applescript
 from PIL import Image
 

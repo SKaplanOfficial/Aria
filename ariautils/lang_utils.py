@@ -5,7 +5,6 @@ import os
 from nltk.corpus import wordnet
 from contextlib import redirect_stdout
 import autocomplete
-import speech_recognition as sr
 import markovify
 
 from . import config_utils, io_utils
