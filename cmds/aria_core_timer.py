@@ -8,15 +8,9 @@ from typing import Callable, Iterable, List, Literal, Mapping, Union, Any, Tuple
 
 from ariautils.command_utils import Command
 from ariautils import io_utils
-from ariautils.misc_utils import any_in_str, display_notification
-
-class RunningState(Enum):
-    """Levels of running states for timers in Aria.
-    """
-    RUNNING = 1
-    PAUSED = 2
-    STOPPED = 3
-    FINISHED = 4
+from ariautils.misc_utils import any_in_str
+from ariautils.types import RunningState
+from ariautils.notifications import DesktopNotification, Alert, TimedNotification
 
 class TimerCommand(Command):
     """An Aria Command for timers, reminders, and management thereof.
@@ -73,7 +67,7 @@ class TimerCommand(Command):
         RunningState.FINISHED: [],
     }
 
-    def execute(self, query, _origin):
+    def execute(self, query: str, _origin: int) -> None:
         # Operate on query using method specified for the query type
         query_type = self.get_query_type(query, True)
         query_type[1]["func"](query, query_type[1]["args"])
@@ -461,9 +455,14 @@ class TimerCommand(Command):
         io_utils.sprint("Timer complete: " + timer["name"])
         self.stacks[RunningState.RUNNING].remove(timer["id"])
         self.stacks[RunningState.FINISHED].append(timer["id"])
-        display_notification(content = "Hey")
+        #DesktopNotification(content = timer["name"] + " is done!", title = "Aria - Timer Complete").show()
+        #Alert("This is an alert!", "Alerted", "warning").show()
+        future_time = datetime.now() + timedelta(seconds = 5)
+        TimedNotification(future_time, "Hi", "How are you?")
 
-    def get_query_type(self, query: str, get_tuple: bool = False):
+        #(class) Alert(title="Alert!", message="Action complete!", type="informational", buttons=["Ok", "Cancel"], default_button="Ok", cancel_button="Cancel", wait=-1)
+
+    def get_query_type(self, query: str, get_tuple: bool = False) -> Union[int, Tuple[int, Dict[str, Any]]]:
         # Replace natural language time specifiers with corresponding amounts and time units
         current_time = datetime.now()
         if "the morn" in query:

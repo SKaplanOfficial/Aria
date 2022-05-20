@@ -9,9 +9,10 @@ Last Updated: Version 0.0.2
 
 import random
 import json
+from typing import Any, List
 import urllib.request
 import math
-import applescript
+import subprocess
 from PIL import Image
 
 from . import io_utils
@@ -69,25 +70,3 @@ def all_in_str(values, string):
 
 def all_in_arr(values, array):
     return all([x in array for x in values])
-
-def display_notification(content, title = "Aria", subtitle = "Operation complete.", sound = "Glass"):
-    """Display a desktop notification via the operating system's notification interface.
-    """
-    scpt = applescript.AppleScript('''
-        try
-            with timeout of 5 seconds
-                display notification "''' + content + '''" with title "''' + title + '''"
-                return 0
-            end timeout
-        on error
-            return 1
-        end try
-    ''')
-    attempts = 1
-    data = scpt.run()
-    print(data)
-    while (data == None or data == 1) and attempts < 3:
-        io_utils.dprint("Retrying ApplesSript...")
-        data = scpt.run()
-        attempts += 1
-    print("Timer complete." + str(data) + "!")
