@@ -65,8 +65,12 @@ class OpenApp(Command):
                 for item in selected_items:
                     command_utils.plugins["aria_core_terminal"].execute("open" + app_target + " " + item.replace(" ", "&"), 2)
         elif query_type == 10:
-            io_utils.sprint("Opening " + query[5:] + "...")
-            query = query[:5] + "-a " + query[5:]
+            if "-a" not in query:
+                io_utils.sprint("Opening " + query[5:] + "...")
+                query = query[:5] + "-a " + query[5:]
+            else:
+                io_utils.sprint("Opening " + query[8:] + "...")
+                # TODO: Should base this ^ on last space, use split()
             cmd_args = " ".join(query.split()[1:])
             command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
         else:
