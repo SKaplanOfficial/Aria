@@ -5,8 +5,9 @@ import os, sys, termios, tty
 import speech_recognition as sr
 from datetime import datetime, timedelta
 from typing import Any
+import platform
 
-from . import command_utils, config_utils, context_utils, lang_utils
+from . import command_utils, config_utils, lang_utils, context_utils
 
 cmd_entered = False # True the instant the user presses Enter after typing a command
 last_entered = "" # The previously entered input

@@ -102,8 +102,11 @@ def load_all_commands():
         cmd_name = file.stem
         if cmd_name in config_utils.get("plugins").keys():
             if config_utils.get("plugins")[cmd_name]:
-                load_command(cmd_name)
-                num_commands += 1
+                try:
+                    load_command(cmd_name)
+                    num_commands += 1
+                except ModuleNotFoundError as e:
+                    print(f"Couldn't load command {cmd_name}: module not found! --", e)
     check_requirements()
     return num_commands
 

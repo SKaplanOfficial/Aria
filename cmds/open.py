@@ -7,6 +7,9 @@ Last Updated: Version 0.0.2
 from ariautils.command_utils import Command
 from ariautils import command_utils, context_utils, io_utils
 
+import platform
+current_os = platform.system()
+
 class OpenApp(Command):
     info = {
         "title": "Open",
@@ -58,30 +61,39 @@ class OpenApp(Command):
                 # "open these in ___"
                 app = query.split()[-1]
                 app = self.__expand_app_ref(app)
-                app_target = " -a " + app.replace(" ", "&")
 
             selected_items = context_utils.get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                    command_utils.plugins["aria_core_terminal"].execute("open" + app_target + " " + item.replace(" ", "&"), 2)
+                    if current_os == "Darwin":
+                        app_target = " -a " + app.replace(" ", "&")
+                        command_utils.plugins["aria_core_terminal"].execute("open" + app_target + " " + item.replace(" ", "&"), 2)
+                    elif current_os == "Linux":
+                        app_target = app.replace(" ", "&")
+                        command_utils.plugins["aria_core_terminal"].execute("cmd.exe /C start" + app_target + " " + item.replace(" ", "&"), 2)
         elif query_type == 10:
-            if "-a" not in query:
-                io_utils.sprint("Opening " + query[5:] + "...")
+            if "-a" not in query and current_os == "Darwin":
                 query = query[:5] + "-a " + query[5:]
             else:
                 io_utils.sprint("Opening " + query[8:] + "...")
                 # TODO: Should base this ^ on last space, use split()
             cmd_args = " ".join(query.split()[1:])
-            command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
+            if current_os == "Darwin":
+                command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
+            elif current_os == "Linux":
+                command_utils.plugins["aria_core_terminal"].execute("cmd.exe /C start " + cmd_args, 2)
         else:
             cmd_args = " ".join(query.split()[1:])
-            command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
+            if current_os == "Darwin":
+                command_utils.plugins["aria_core_terminal"].execute("open " + cmd_args, 2)
+            elif current_os == "Linux":
+                command_utils.plugins["aria_core_terminal"].execute("cmd.exe /C start " + cmd_args, 2)
 
         target = []
         parts = cmd_args.split()
         quote_open = False
         for index, part in enumerate(parts):
-            if "-" not in part:
+            if "-" not in part and current_os == "Darwin":
                 target.append(part)
                 if not quote_open:
                     parts[index] = "'"+part

@@ -8,6 +8,9 @@ cfg_version = "0.0.1"
 config = {}
 runtime_config = {}
 
+if not os.path.exists("./data"):
+    os.mkdir("./data")
+
 def create_global_config(initial_config):
     """
     Creates aria_config.json, overwriting if it already exists in the same location. Updates config dictionary to supplied initial config.

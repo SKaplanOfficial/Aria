@@ -9,10 +9,13 @@ import threading
 import time
 import argparse
 
+import platform
+current_os = platform.system()
+
 from datetime import datetime
 from pathlib import Path
 
-from ariautils import command_utils, config_utils, context_utils, io_utils
+from ariautils import command_utils, config_utils, io_utils, context_utils
 
 if __name__ == '__main__':
     # Parse commandline arguments
@@ -49,7 +52,7 @@ def parse_input(str_in):
 
     :Example:
 
-    >>> another_class.foo('', AClass())        
+    >>> another_class.foo('', AClass())
     
     :param arg1: first argument
     :type arg1: string
@@ -193,8 +196,9 @@ def context_loop():
     """Updates the context tracker once a second.
     """
     while context_utils.looping:
-        context_utils.update_context()
-        time.sleep(1)
+        if current_os == "Darwin":
+            context_utils.update_context()
+            time.sleep(1)
 
 
 if __name__ == '__main__':

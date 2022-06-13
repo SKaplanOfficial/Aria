@@ -118,6 +118,7 @@ class TerminalCommand(Command):
 
     def get_query_type(self, query: str, get_tuple: bool = False) -> Union[int, Tuple[int, Dict[str, Any]]]:
         has_macos_cmd = re.search(r'^(clear|cd|ls|du|df|mkdir|rm|rmdir|touch|cp|mv|history|chmod|chown|ps|top|kill|ping|whois|ssh|curl|scp|arp|ifconfig|traceroute|printenv|echo|export|grep|cat|less|head|nano|man|open|vim|afplay|cron|cmp|diff|diskutil|env|fdisk|ftp|groups|users|ipconfig|killall|launchctl|logout|md5|mkfile|mtree|net|netstat|openssl|pbcopy|pbs|pkill|pkgutil|reboot|shutdown|screen|sleep|softwareupdate|tail|vi|whoami|pwd|afconvert|apachectl|sftp|ffplay|flac|zip|unzip|xargs|wall)', query) != None
+        has_wsl_cmd = re.search(r'^(cmd.exe|cd|ls|vim)', query) != None
 
         has_third_party_cmd = re.search(r'^(git|brew|python|pip|ffmpeg|ffplay|python3|pydoc|black|pylint|autopep8|django|django-admin|mysql|docker|docker-compose|node|npm|php|perl|ruby|rust|rustc|gcc|cpp|c\+\+|f90|aws|code|emacs|youtube-dl)', query) != None
 
@@ -144,8 +145,13 @@ class TerminalCommand(Command):
                 "args": shell_args,
             },
 
-            2: { # Third Party Command
+            5: { # Third Party Command
                 "conditions": [has_third_party_cmd],
+                "func": self.__default_shell,
+                "args": [],
+            },
+            2: { # WSL Command
+                "conditions": [has_wsl_cmd],
                 "func": self.__default_shell,
                 "args": [],
             },

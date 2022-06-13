@@ -1,11 +1,16 @@
 """A manager for Aria's context tracking system. Only one ContextManager should be active at a time.
 """
 
-import applescript, subprocess, os
+import subprocess, os
 from datetime import datetime
 from .tracking_utils import TrackingManager
 from pathlib import Path
 from . import file_utils
+
+import platform
+current_os = platform.system()
+if current_os == "Darwin":
+    import applescript
 
 mins_to_checkpoint = 0.05
 timer_checkpoint = -1
@@ -17,7 +22,7 @@ item_structure = {
     "targets" : list,
 }
 
-context_tracker = TrackingManager.init_tracker("context", item_structure)
+context_tracker = TrackingManager.init_tracker("context", item_structure, "/mnt/c/Users/fryei/Documents/GitHub/Aria/data")
 context_tracker.load_data()
 current_context = context_tracker.new_item([0, 0, 0, []])
 current_app = ""

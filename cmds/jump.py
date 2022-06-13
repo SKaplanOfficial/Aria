@@ -11,6 +11,9 @@ from ariautils import io_utils, context_utils
 from ariautils.tracking_utils import TrackingManager
 from ariautils.command_utils import Command
 
+import platform
+current_os = platform.system()
+
 class Jump(Command):
     info = {
         "title": "Jump",
@@ -123,7 +126,11 @@ class Jump(Command):
         for dest in best_candidate.data["targets"]:
             if origin in [0, 1]:
                 print("Attempting jump to " + dest + "...")
-            command = ["open", dest]
+
+            if current_os == "Darwin":
+                command = ["open", dest]
+            elif current_os == "Linux":
+                command = ["cmd.exe", "/C", "start", dest]
 
             status = 0
             if origin != 3:
