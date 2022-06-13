@@ -16,7 +16,7 @@ class Jump(Command):
         "title": "Jump",
         "repository": "https://github.com/SKaplanOfficial/Aria",
         "documentation_link": "https://github.com/SKaplanOfficial/Aria/documentation/",
-        'id': "aria_jump",
+        'id': "aria_core_jump",
         "version": "1.0.0",
         "description": """
             Jumps to a destination application, file, folder, or website.
@@ -116,7 +116,8 @@ class Jump(Command):
         return best_candidate
 
     def __jump(self, best_candidate, origin):
-        """ Attempts to open the destinations associated with the best candidate. Returns 0 if all jumps succeeded, -1 if some jumps failed while others succeeded, and 1 if all jumps failed. """
+        """Attempts to open the destinations associated with the best candidate. Returns 0 if all jumps succeeded, -1 if some jumps failed while others succeeded, and 1 if all jumps failed.
+        """
         successes = []
         failures = []
 
@@ -145,13 +146,15 @@ class Jump(Command):
         return overall_status, successes, failures
 
     def __update_jump(self, jump_item, current_time):
-        """ Updates the jump item's time range and frequency. """
+        """Updates the jump item's time range and frequency.
+        """
         jump_item.data["start_time"] += (current_time - jump_item.data["start_time"]) * 0.01
         jump_item.data["end_time"] += (current_time - jump_item.data["end_time"]) * 0.01
         jump_item.data["frequency"] += 1
 
     def __report_failures(self, failures):
-        """ Reports the destinations that could not be jumped to. """
+        """Reports the destinations that could not be jumped to.
+        """
         if len(failures) > 1:
             io_utils.sprint("I was unable to complete jumps to " + str(len(failures)) + " destinations:")
             for dest in failures:
@@ -160,7 +163,8 @@ class Jump(Command):
             io_utils.sprint("I was unable to complete the jump to " + failures[0] + ".")
 
     def __remove_broken_jump(self, jump_item, jump_tracker):
-        """ Removes jump entries that are no longer functional. """
+        """Removes jump entries that are no longer functional.
+        """
         if (jump_item.data["frequency"] != 0):
             print("Found broken jump point, removing.")
         else:
@@ -168,7 +172,7 @@ class Jump(Command):
             io_utils.dprint("Removing jump item '" + " ".join(jump_item.data["targets"]) + "'")
         jump_tracker.items.remove(jump_item)
 
-    def get_query_type(self, query):
+    def get_query_type(self, query: str):
         parts = query.split()
         if parts[0] in ["j", "goto", "jto"]:
             return 1000
@@ -177,7 +181,7 @@ class Jump(Command):
             return 1
         return 0
 
-    def get_template(self, new_cmd_name):
+    def get_template(self, new_cmd_name: str):
         print("Enter base command and args: ")
         cmd_new = input()
 
