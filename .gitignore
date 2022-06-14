@@ -10,3 +10,7 @@ aria_config.json
 *.pkg
 
 sphinx-docs/build/*
+
+aria_extra_*.py
+aria_expr_*.py
+sk_*.py
