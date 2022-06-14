@@ -56,13 +56,13 @@ class TerminalCommand(Command):
         query_type = self.get_query_type(query, True)
         query_type[1]["func"](query, query_type[1]["args"])
 
-    def run_command(self, command_string: str, shell: bool = False, stdin: Union[int,  IO[AnyStr], None] = None, stdout: Union[int,  IO[AnyStr], None] = None, stderr: Union[int,  IO[AnyStr], None] = None, cwd: Union[str, bytes, os.PathLike] = None, env = None) -> int:
+    def run_command(self, command: Union[str, List[str]], shell: bool = False, stdin: Union[int,  IO[AnyStr], None] = None, stdout: Union[int,  IO[AnyStr], None] = None, stderr: Union[int,  IO[AnyStr], None] = None, cwd: Union[str, bytes, os.PathLike] = None, env = None) -> int:
         """Runs a command.
 
         _extended_summary_
 
-        :param command_string: The command to run, including all arguments
-        :type command_string: str
+        :param command: The command to run, including all arguments
+        :type command: Union[str, List[str]]
         :param shell: Whether to spawn an intermediate shell process to run the command, defaults to False
         :type shell: bool, optional
         :param stdin: Where to look for input text, defaults to None
@@ -80,7 +80,9 @@ class TerminalCommand(Command):
 
         .. versionadded:: 1.0.0
         """
-        cmd_arr = shlex.split(command_string)
+        cmd_arr = command
+        if isinstance(command, str):
+            cmd_arr = shlex.split(command)
         completion_status = subprocess.call(cmd_arr, shell = shell, stdin = stdin, stdout = stdout, stderr = stderr, cwd = cwd, env = env)
         return completion_status
 
