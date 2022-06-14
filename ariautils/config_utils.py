@@ -109,6 +109,10 @@ def initial_setup():
         "cfg_version": cfg_version,
         "aria_path": os.getcwd(),
         "user_name": "User",
+        "aria_web_ui": {
+            "enabled": False,
+            "port": 65432
+        },
         "plugins" : {},
         "dev_mode": False,
     }
