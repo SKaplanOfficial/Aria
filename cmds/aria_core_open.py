@@ -7,6 +7,10 @@ Last Updated: Version 0.0.2
 from ariautils.command_utils import Command
 from ariautils import command_utils, context_utils, io_utils
 
+import shlex
+import platform
+current_os = platform.system()
+
 class OpenApp(Command):
     info = {
         "title": "Open",
@@ -49,68 +53,64 @@ class OpenApp(Command):
     }
 
     def execute(self, query, origin):
+        query = self.__cleanse(query)
         query_type = self.get_query_type(query)
         app_target = ""
         if query_type in [22, 220, 2200]:
-            print("\nOpening...")
-            # "open these"
+            # Selected Files, query is along the lines of "open these"
             if query_type == 2200:
-                # "open these in ___"
+                # Query is along the lines of "open these in ___"
                 app = query[query.index("in") + 3:]
                 app = self.__expand_app_ref(app)
                 app_target = app
+                print("Opening", app_target + "...")
 
             selected_items = context_utils.get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                    command_utils.plugins["aria_core_terminal"].run_command(["open", "-a", "Visual Studio Code", item])
-        elif query_type == 10:
-            if "-a" not in query:
-                query = query[:5] + "-a " + query[5:]
-                # TODO: Should base this ^ on last space, use split()
-            else:
-                pass
-            cmd_args = " ".join(query.split()[1:])
-            command_utils.plugins["aria_core_terminal"].run_command("open " + cmd_args, 2)
+                        self.open(item, app_target)
         else:
-            cmd_args = " ".join(query.split()[1:])
-            command_utils.plugins["aria_core_terminal"].run_command("open " + cmd_args, 2)
+            parts = shlex.split(query)
+            app_target = self.__expand_app_ref(" ".join(parts[1:]))
+            print("Opening", app_target + "...")
+            self.open_item(app_target)
 
-        target = []
-        parts = cmd_args.split()
-        quote_open = False
-        for index, part in enumerate(parts):
-            if "-" not in part:
-                target.append(part)
-                if not quote_open:
-                    parts[index] = "'"+part
-                    quote_open = True
-                if quote_open and index == len(parts) - 1:
-                    parts[index] = part+"'"
-            else:
-                if quote_open:
-                    parts[index] = part+"'"
-
-
-        target = "\ ".join(parts)
         # Pseudo-jump to target to track the app usage
-        command_utils.plugins["aria_jump"].execute("j "+target.strip(), 3)
+        command_utils.plugins["aria_jump"].execute("j " + app_target, 3)
+
+    def __cleanse(self, query: str) -> str:
+        query = query.replace("\\", "\\\\")
+        query = query.replace("\"", "\\\"")
+        query = query.replace('\'', '\\\'')
+        query = query.replace('\ ', '\\\ ')
+        return query
 
     def __expand_app_ref(self, app_ref):
-        ref_map = {
-            "vscode": "Visual Studio Code", "code": "Visual Studio Code",
-            "msg": "Messages", "msgs": "Messages",
-            "mc": "Minecraft",
-            "browser": "Safari",
-            "acrobat": "Adobe Acrobat",
-            "msw": "Microsoft Word",
-            "mse": "Microsoft Excel",
-            "msp": "Microsoft Powerpoint",
-            "ps": "Adobe Photoshop 2022",
-            "ind": "Adobe InDesign 2022",
-            "ai": "Adobe Illustrator 2022",
-            "qt": "QuickTime Player",
-        }
+        ref_map = {}
+        if current_os == "Windows":
+            ref_map = {
+                "vscode": "C:\\Users\\fryei\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+                "visual studio code": "C:\\Users\\fryei\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+            }
+        elif current_os == "Linux":
+            ref_map = {}
+        elif current_os == "Darwin":
+            ref_map = {
+                "vscode": "Visual Studio Code", "code": "Visual Studio Code",
+                "msg": "Messages", "msgs": "Messages",
+                "mc": "Minecraft",
+                "browser": "Safari",
+                "acrobat": "Adobe Acrobat",
+                "msw": "Microsoft Word",
+                "mse": "Microsoft Excel",
+                "msp": "Microsoft Powerpoint",
+                "ps": "Adobe Photoshop 2022",
+                "ind": "Adobe InDesign 2022",
+                "ai": "Adobe Illustrator 2022",
+                "qt": "QuickTime Player",
+                "gitdesk": "Github Desktop",
+                "git": "Github Desktop",
+            }
 
         # Exact match to known shorthand form
         if app_ref in ref_map:
@@ -118,7 +118,8 @@ class OpenApp(Command):
 
         # Partial match to app name
         values = list(ref_map.values())
-        values.extend(context_utils.get_app_list())
+        if current_os == "Darwin":
+            values.extend(context_utils.get_app_list())
         for value in values:
             if app_ref in value.lower():
                 return value
@@ -141,7 +142,7 @@ class OpenApp(Command):
 
             if "this" in query or "these" in query:
                 # Query is along the lines of "open this/these in vscode"
-                if "Finder" in context_utils.previous_apps or "Finder" in context_utils.current_app:
+                if "Finder" in context_utils.previous_apps or "Finder" in context_utils.current_app or current_os != "Darwin":
                     # Finder is open
                     if "in" in query:
                         return 2200
@@ -149,6 +150,63 @@ class OpenApp(Command):
                 return 22
             return 10 # App
         return 0
+
+    def open_item(self, item: str, app: str = None) -> None:
+        if app is None:
+            # No app specified, open in default app
+            if current_os == "Windows":
+                self.__open_file_windows(item)
+            elif current_os == "Linux":
+                self.__open_file_linux(item)
+            elif current_os == "Darwin":
+                self.__open_file_darwin(item)
+        else:
+            if current_os == "Windows":
+                self.__open_app_windows(app, item)
+            elif current_os == "Linux":
+                self.__open_app_linux(app, item)
+            elif current_os == "Darwin":
+                self.__open_app_darwin(app, item)
+
+    def open_app() -> None:
+        pass
+
+    # Windows
+    def __open_app_windows(self, app: str, file: str = None):
+        if ".exe" in app:
+            status = command_utils.plugins["aria_core_terminal"].run_command([app, file])
+        else:
+            status = command_utils.plugins["aria_core_terminal"].run_command(["start", app, file])
+            if status == 1:
+                io_utils.sprint("Let me try again...")
+                status = command_utils.plugins["aria_core_terminal"].run_command(["start", file + ":"])
+                if status == 1:
+                    io_utils.sprint("Sorry, I was unable to find that file or application.")
+                    
+    def __open_file_windows(self, file: str):
+        if ".exe" in file:
+            status = command_utils.plugins["aria_core_terminal"].run_command([file])
+        else:
+            status = command_utils.plugins["aria_core_terminal"].run_command(["start", file])
+            if status == 1:
+                io_utils.sprint("Let me try again...")
+                status = command_utils.plugins["aria_core_terminal"].run_command(["start", file + ":"])
+                if status == 1:
+                    io_utils.sprint("Sorry, I was unable to find that file or application.")
+
+    # Linux
+    def __open_app_linux(self, app: str, file: str = None):
+        command_utils.plugins["aria_core_terminal"].run_command(["gio", "open", app, file])
+
+    def __open_file_linux(self, file: str):
+        command_utils.plugins["aria_core_terminal"].run_command(["gio", "open", file])
+
+    # Darwin
+    def __open_app_darwin(self, app: str, file: str = None):
+        command_utils.plugins["aria_core_terminal"].run_command(["open", "-a", app, file])
+
+    def __open_file_darwin(self, file: str):
+        command_utils.plugins["aria_core_terminal"].run_command(["open", file])
 
     def get_template(self, new_cmd_name):
         print("Enter base command and args: ")

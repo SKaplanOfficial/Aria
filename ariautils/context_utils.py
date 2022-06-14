@@ -22,7 +22,7 @@ item_structure = {
     "targets" : list,
 }
 
-context_tracker = TrackingManager.init_tracker("context", item_structure, "/mnt/c/Users/fryei/Documents/GitHub/Aria/data")
+context_tracker = TrackingManager.init_tracker("context", item_structure, "./data")
 context_tracker.load_data()
 current_context = context_tracker.new_item([0, 0, 0, []])
 current_app = ""

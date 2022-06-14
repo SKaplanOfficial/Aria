@@ -1,11 +1,18 @@
 """A standard input manager for Aria. Only one InputManager should be active at a time.
 """
 
-import os, sys, termios, tty
+import os, sys
 import speech_recognition as sr
 from datetime import datetime, timedelta
 from typing import Any
+
 import platform
+current_os = platform.system()
+
+if current_os == "Windows":
+    import msvcrt
+else:
+    import termios, tty
 
 from . import command_utils, config_utils, lang_utils, context_utils
 
@@ -151,12 +158,16 @@ def dequeue() -> Query:
 
 def getch():
     fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(0)
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    ch = None
+    if current_os == "Windows":
+        ch = msvcrt.getch().decode()
+    else:
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(0)
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     return ch
 
 def replace_line(new_line):

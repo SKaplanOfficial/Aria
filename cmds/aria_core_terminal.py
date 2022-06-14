@@ -56,14 +56,14 @@ class TerminalCommand(Command):
         query_type = self.get_query_type(query, True)
         query_type[1]["func"](query, query_type[1]["args"])
 
-    def run_command(self, command: Union[str, List[str]], shell: bool = False, stdin: Union[int,  IO[AnyStr], None] = None, stdout: Union[int,  IO[AnyStr], None] = None, stderr: Union[int,  IO[AnyStr], None] = None, cwd: Union[str, bytes, os.PathLike] = None, env = None) -> int:
+    def run_command(self, command: Union[str, List[str]], shell: bool = True, stdin: Union[int,  IO[AnyStr], None] = None, stdout: Union[int,  IO[AnyStr], None] = None, stderr: Union[int,  IO[AnyStr], None] = None, cwd: Union[str, bytes, os.PathLike] = None, env = None) -> int:
         """Runs a command.
 
         _extended_summary_
 
         :param command: The command to run, including all arguments
         :type command: Union[str, List[str]]
-        :param shell: Whether to spawn an intermediate shell process to run the command, defaults to False
+        :param shell: Whether to spawn an intermediate shell process to run the command, defaults to True (necessary to run some commands)
         :type shell: bool, optional
         :param stdin: Where to look for input text, defaults to None
         :type stdin: Union[subprocess.PIPE, int,  IO[AnyStr], None], optional
@@ -83,6 +83,7 @@ class TerminalCommand(Command):
         cmd_arr = command
         if isinstance(command, str):
             cmd_arr = shlex.split(command)
+        print(cmd_arr)
         completion_status = subprocess.call(cmd_arr, shell = shell, stdin = stdin, stdout = stdout, stderr = stderr, cwd = cwd, env = env)
         return completion_status
 
@@ -120,7 +121,7 @@ class TerminalCommand(Command):
 
     def get_query_type(self, query: str, get_tuple: bool = False) -> Union[int, Tuple[int, Dict[str, Any]]]:
         has_macos_cmd = re.search(r'^(clear|cd|ls|du|df|mkdir|rm|rmdir|touch|cp|mv|history|chmod|chown|ps|top|kill|ping|whois|ssh|curl|scp|arp|ifconfig|traceroute|printenv|echo|export|grep|cat|less|head|nano|man|open|vim|afplay|cron|cmp|diff|diskutil|env|fdisk|ftp|groups|users|ipconfig|killall|launchctl|logout|md5|mkfile|mtree|net|netstat|openssl|pbcopy|pbs|pkill|pkgutil|reboot|shutdown|screen|sleep|softwareupdate|tail|vi|whoami|pwd|afconvert|apachectl|sftp|ffplay|flac|zip|unzip|xargs|wall)', query) != None
-        has_wsl_cmd = re.search(r'^(cmd.exe|cd|ls|vim)', query) != None
+        has_windows_cmd = re.search(r'^(start|cd|ls|vim)', query) != None
 
         has_third_party_cmd = re.search(r'^(git|brew|python|pip|ffmpeg|ffplay|python3|pydoc|black|pylint|autopep8|django|django-admin|mysql|docker|docker-compose|node|npm|php|perl|ruby|rust|rustc|gcc|cpp|c\+\+|f90|aws|code|emacs|youtube-dl)', query) != None
 
@@ -152,8 +153,8 @@ class TerminalCommand(Command):
                 "func": self.__default_shell,
                 "args": [],
             },
-            2: { # WSL Command
-                "conditions": [has_wsl_cmd],
+            2: { # Windows Command
+                "conditions": [has_windows_cmd],
                 "func": self.__default_shell,
                 "args": [],
             },
