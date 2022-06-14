@@ -221,7 +221,7 @@ def create_shortcut(cmd_str, cmd_name):
 
     Arguments:
         cmd_str {String} -- The full command to be saved as a shortcut, including arguments.
-        cmd_name {String} -- The name of the command plugin to be saved as a shortcut; the default name of the shotcut.
+        cmd_name {String} -- The name of the command plugin to be saved as a shortcut; the default name of the shortcut.
 
     Returns:
         None
@@ -236,7 +236,7 @@ def create_shortcut(cmd_str, cmd_name):
     print("Where do you want the shortcut?", end="\n->")
     folder_path = input()
 
-    print("What do you want the shorcut to be named? Leave blank to name it '" + cmd_name + ".'", end="\n->")
+    print("What do you want the shortcut to be named? Leave blank to name it '" + cmd_name + ".'", end="\n->")
     name = input()
     if name == "":
         name = cmd_name
@@ -501,11 +501,11 @@ class Command:
         return self.get_query_type(query)
 
     def handler(self, query, query_type):
-        """Handles a query after it is tranferred to this command's control. Calls self.execute() by default. Use this method to adjust the command's flow based on the type of query that is being handled. In combindation with self.handler_checker(), this can be used to customize which queries the command responds to and how it responds to them.
+        """Handles a query after it is transferred to this command's control. Calls self.execute() by default. Use this method to adjust the command's flow based on the type of query that is being handled. In combination with self.handler_checker(), this can be used to customize which queries the command responds to and how it responds to them.
 
         :param query: The current inputted query to be handled.
         :type query: str
-        :param query_type: A number reprenting the type of query and level of confidence that it should be handled by this command.
+        :param query_type: A number representing the type of query and level of confidence that it should be handled by this command.
         :type query_type: int
         """
         self.execute(query, 1)
@@ -539,9 +539,9 @@ class Command:
     def prepare(self):
         """Initializes objects and resources to be used in an upcoming execution of this command.
         Children of the Command class are not required to implement this method, and there is often no need to call it. It is not automatically called.
-        An implemention should be provided when all of the following conditions are true: 1) other commands are likely to call this command, 2) the preparation procedure for this command takes a nontrivial amount of time, and 3) the preparation procedure must occur upon most (but not necessary every) execution of the command instead.
+        An implementation should be provided when all of the following conditions are true: 1) other commands are likely to call this command, 2) the preparation procedure for this command takes a nontrivial amount of time, and 3) the preparation procedure must occur upon most (but not necessary every) execution of the command instead.
 
-        In cases where preparation cannot be done asychronously or otherwise without significantly impacting Aria's performance, the self.preload() method is preferred.
+        In cases where preparation cannot be done asynchronously or otherwise without significantly impacting Aria's performance, the self.preload() method is preferred.
 
         If applicable, manually run this before or at the start of self.execute().
         """
