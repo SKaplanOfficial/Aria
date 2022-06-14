@@ -118,6 +118,8 @@ class Tracker:
     def create_csv(self, first_item = []):
         """ Create tracking.csv if it doesn't already exist. """
         print("Creating " + self.data_file_path + "...")
+        if not os.path.exists(self.data_file_path):
+            with open(self.data_file_path, 'w'): pass
         with open(self.data_file_path, 'a') as new_csv:
             csv_writer = csv.writer(
                 new_csv,

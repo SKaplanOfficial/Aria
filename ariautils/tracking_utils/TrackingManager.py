@@ -2,14 +2,13 @@ from .Trackers import Tracker
 from pathlib import Path
 from datetime import datetime
 
-data_folder_path = "/Users/steven/Documents/2020/Python/Aria/data"
 trackers = {}
 
 def setup(data_path):
     data_folder_path = data_path
     Path(data_folder_path).mkdir(parents = True, exist_ok = True)
 
-def init_tracker(title, item_structure = None):
+def init_tracker(title, item_structure = None, data_folder_path = "./"):
     """ Create a tracker. """
     data_file_name = title+"_tracking.csv"
     data_file_path = data_folder_path + "/" + data_file_name
