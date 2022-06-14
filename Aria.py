@@ -4,6 +4,7 @@ Aria - A modular virtual assistant for the crazy ones.
 Version 0.0.1
 """
 
+from distutils.command.config import config
 import re
 import threading
 import time
@@ -12,7 +13,26 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+ui_capable = False
+try:
+    import tkinter as tk
+    from tkinter import ttk
+    ui_capable = True
+except:
+    print("Failed to load Tk. Downgrading to terminal interface.")
+
 from ariautils import command_utils, config_utils, context_utils, io_utils
+from ariautils.types import InvocationError, AssumedQueryLengthError, AriaPhase, RunningState
+
+gui = None
+messages = []
+current_phase = None
+
+if ui_capable and config_utils.get("aria_ui")["enabled"]:
+    gui = tk.Tk()
+    gui.geometry("256x448")
+    gui.attributes("-alpha", 0.9)
+    gui.config(bg='#BBBBCC')
 
 if __name__ == '__main__':
     # Parse commandline arguments
@@ -59,6 +79,7 @@ def parse_input(str_in):
     :rtype: string
     :raises: TypeError
     """
+    global current_phase
     cmd_name = None
 
     # Check meta-commands
@@ -84,12 +105,18 @@ def parse_input(str_in):
     else:
         # TODO: Extract this into the CommandManager class to avoid repetition
         # Run invocation checkers for each command plugin
+        current_phase = AriaPhase.INVOCATION_PHASE
         for (cmd, invocation_checker) in command_utils.invocations.items():
-            if invocation_checker(str_in):
-                cmd_name = cmd
-
+            try:
+                if invocation_checker(str_in):
+                    cmd_name = cmd
+            except IndexError:
+                raise AssumedQueryLengthError(str_in, cmd)
+            except Exception as e:
+                raise InvocationError(str_in, cmd)
 
         # If no matching filename is found, see if any plugin wants to handle the input
+        current_phase = AriaPhase.HANDLER_CHECK_PHASE
         handler = None
         max_handler_score = 0
         if cmd_name == "" or cmd_name is None:
@@ -108,6 +135,7 @@ def parse_input(str_in):
         
         if handler != None:
             # If a plugin has a handler for this input, run the handler
+            current_phase = AriaPhase.HANDLER_PHASE
             handler(str_in, max_handler_score)
         else:
             # Try known files
@@ -133,6 +161,8 @@ def parse_input(str_in):
 
             else:
                 # Enabled command has been found
+                current_phase = AriaPhase.EXECUTION_PHASE
+
                 if int(time.time()) % 3 == 0:
                     # Occasional Acknowledgement
                     io_utils.sprint("Ok!")
@@ -149,35 +179,43 @@ def parse_input(str_in):
                     except:
                         pass
 
+                current_phase = AriaPhase.END_PHASE
+
 def aria_loop():
     """Runs the main command input loop.
     """
+    global current_phase
+    current_phase = AriaPhase.INPUT_PHASE
     while context_utils.looping:
-        if len(io_utils.query_queue) > 0 and io_utils.query_queue[0].get_exec_time() <= datetime.now():
-            io_utils.query_queue.sort()
-            run_query(io_utils.dequeue())
-        elif io_utils.cmd_entered:
-            str_in = io_utils.input_buffer
-            io_utils.input_buffer = ""
-            
-            if str_in == "context":
-                print("-"*25, "\n", "Current App: ", context_utils.current_app, "\n\n")
-                print("Current Context: ", context_utils.current_context.data, "\n\n")
-                print("Context History: ", context_utils.current_context.data, "\n", "-"*25, "\n\n")
-            else:
-                query_strings = str_in.split(",")
-                for str in query_strings:
-                    new_query = io_utils.Query(str)
-                    io_utils.enqueue(new_query)
+        try:
+            if len(io_utils.query_queue) > 0 and io_utils.query_queue[0].get_exec_time() <= datetime.now():
+                io_utils.query_queue.sort()
+                run_query(io_utils.dequeue())
+            elif io_utils.cmd_entered:
+                str_in = io_utils.input_buffer
+                io_utils.input_buffer = ""
+                
+                if str_in == "context":
+                    print("-"*25, "\n", "Current App: ", context_utils.current_app, "\n\n")
+                    print("Current Context: ", context_utils.current_context.data, "\n\n")
+                    print("Context History: ", context_utils.current_context.data, "\n", "-"*25, "\n\n")
+                else:
+                    query_strings = str_in.split(",")
+                    for str in query_strings:
+                        new_query = io_utils.Query(str)
+                        io_utils.enqueue(new_query)
 
-            context_utils.previous_input = str_in
-            io_utils.last_entered = str_in
-            io_utils.cmd_entered = False
-        else:
-            if config_utils.runtime_config['speak_query']:
-                io_utils.detect_spoken_input()
+                context_utils.previous_input = str_in
+                io_utils.last_entered = str_in
+                io_utils.cmd_entered = False
             else:
-                io_utils.detect_typed_input()
+                if config_utils.runtime_config['speak_query']:
+                    io_utils.detect_spoken_input()
+                else:
+                    io_utils.detect_typed_input()
+        except Exception as e:
+            if config_utils.runtime_config["debug"]:
+                raise
 
 
 def run_query(query: io_utils.Query) -> None:
@@ -186,8 +224,12 @@ def run_query(query: io_utils.Query) -> None:
     :param query: The query to be executed.
     :type query: io_utils.Query
     """
-    parse_input(query.get_content())
+    global response
 
+    if ui_capable and config_utils.get("aria_ui")["enabled"]:
+        ttk.Label(frame, text="Ok").pack(pady = 10)
+
+    parse_input(query.get_content())
 
 def context_loop():
     """Updates the context tracker once a second.
@@ -198,10 +240,6 @@ def context_loop():
 
 
 if __name__ == '__main__':
-    lock = threading.Lock()  # A lock for the shared resource
-    context_thread = threading.Thread(target=context_loop, name="Context", daemon=True)
-    aria_thread = threading.Thread(target=aria_loop, name="Aria", daemon=True)
-
     if args.cmd is not None:
         # Run a command supplied via commandline args
         run_query(args.cmd)
@@ -214,8 +252,28 @@ if __name__ == '__main__':
         io_utils.sprint("Hello, " + config_utils.get("user_name") + "!")
         io_utils.sprint("How can I help?")
 
+        context_thread = threading.Thread(target=context_loop, name="Context", daemon=True)
         context_thread.start()
+
+        aria_thread = threading.Thread(target=aria_loop, name="Aria", daemon=True)
         aria_thread.start()
 
-        while context_utils.looping:
-            time.sleep(0.1)
+        if ui_capable and config_utils.get("aria_ui")["enabled"]:
+            print(messages)
+            frame = ttk.Frame(gui, padding = 10)
+            frame.pack()
+
+            ttk.Scrollbar(gui, orient="vertical").pack(side = "right", fill = "y")
+            
+            m1 = tk.Frame(gui, bg = "#336699", width = 256)
+            tk.Label(m1, text="Hello, my name is Aria.", bg = "#336699").pack(pady = 5)
+            m1.pack()
+
+            m2 = tk.Frame(gui, bg = "#336699", width = 256)
+            tk.Label(m2, text="How can I help?", bg = "#336699").pack(pady = 5)
+            m2.pack()
+
+            gui.mainloop()
+        else:
+            while context_utils.looping and aria_thread.is_alive():
+                pass
