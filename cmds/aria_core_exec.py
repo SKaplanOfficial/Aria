@@ -1,7 +1,9 @@
 """
-x
+Exec
 
-Last Updated: Version 0.0.1
+A command plugin for Aria that executes a series of commands identified by a specifier.
+
+Part of AriaCore in Aria 1.0.0
 """
 
 from datetime import datetime
@@ -23,9 +25,7 @@ class Execute(Command):
             Tracks executions to better infer targets from shorthand notations over time.
         """,
         "requirements": {},
-        "extensions": {
-            'aria_exec': '1.0.0',
-        },
+        "extensions": {},
         "purposes": [
             "execute tasks", "run commands",
         ],
@@ -33,7 +33,7 @@ class Execute(Command):
             "j google", "app calendar", "note today",
         ],
         "keywords": [
-            "aria", "command", "navigation", "shortcut",
+            "aria", "command", "core", "navigation", "shortcut",
         ],
         "example_usage": [
             ("x example", "Runs the execution sequences named 'example'."),

@@ -1,5 +1,11 @@
-"""This module provides timer and timer-related functionalities, including creating, pausing, stopping, extending, and listing timers, for use in Aria.
 """
+Timer
+
+A command plugin for Aria that provides the ability to create and manage timers.
+
+Part of AriaCore in Aria 1.0.0
+"""
+
 import threading
 import re
 from datetime import datetime, timedelta

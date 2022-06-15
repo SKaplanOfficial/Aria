@@ -1,7 +1,9 @@
 """
 Jump
 
-Last Updated: Version 0.0.1
+A command plugin for Aria that enables quick navigation via shorthand references to applications, files, and folders
+
+Part of AriaCore in Aria 1.0.0
 """
 
 import subprocess
@@ -27,8 +29,8 @@ class Jump(Command):
         """,
         "requirements": {},
         "extensions": {
-            "aria_exec": "1.0.0",
-            "aria_open": "1.0.0",
+            "aria_core_exec": "1.0.0",
+            "aria_core_open": "1.0.0",
         },
         "purposes": [
             "jump to", "go to",
@@ -37,7 +39,7 @@ class Jump(Command):
             "http://example.com", "google", "documents", "doc", "Applications/Notes.app", "notes",
         ],
         "keywords": [
-            "aria", "command", "navigation", "shortcut"
+            "aria", "command", "core", "navigation", "shortcut"
         ],
         "example_usage": [
             ("j downloads", "Opens the downloads folder in the file explorer application (Finder)."),

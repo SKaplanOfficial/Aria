@@ -1,10 +1,11 @@
 """
-Terminal command for Aria.
+Terminal
 
-API
-===
-TerminalCommand: A class for executing terminal commands in Aria.
+A command plugin for Aria that runs terminal commands.
+
+Part of AriaCore in Aria 1.0.0
 """
+
 
 import os
 import re, subprocess, shlex

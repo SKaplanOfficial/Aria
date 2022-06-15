@@ -1,9 +1,12 @@
 """
-App
+Open
 
-Last Updated: Version 0.0.2
+A command plugin for Aria that opens files and folders.
+
+Part of AriaCore in Aria 1.0.0
 """
 
+from numpy import True_
 from ariautils.command_utils import Command
 from ariautils import command_utils, context_utils, io_utils
 
@@ -34,7 +37,7 @@ class OpenApp(Command):
             "calendar", "calculator.app", "https://example.com"
         ],
         "keywords": [
-            "aria", "command", "navigation", "shortcut",
+            "aria", "command", "core", "navigation", "applications", "files", "explorer", "finder",
         ],
         "example_usage": [
             ("open /applications/calendar.app", "Opens the calendar app."),
@@ -55,34 +58,47 @@ class OpenApp(Command):
     def execute(self, query, origin):
         query = self.__cleanse(query)
         query_type = self.get_query_type(query)
-        app_target = ""
+        target = ""
         if query_type in [22, 220, 2200]:
             # Selected Files, query is along the lines of "open these"
             if query_type == 2200:
                 # Query is along the lines of "open these in ___"
                 app = query[query.index("in") + 3:]
                 app = self.__expand_app_ref(app)
-                app_target = app
-                print("Opening", app_target + "...")
+                target = app
+                print("Opening", target + "...")
 
             selected_items = context_utils.get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                        self.open(item, app_target)
+                        self.open(item, target)
         else:
             parts = shlex.split(query)
-            app_target = self.__expand_app_ref(" ".join(parts[1:]))
-            print("Opening", app_target + "...")
-            self.open_item(app_target)
+            target = self.__expand_app_ref(" ".join(parts[1:]))
+            if self.is_path(target):
+                io_utils.sprint("Opening file...")
+                self.open_item(target)
+            else:
+                io_utils.sprint("Opening application...")
+                self.open_app(target)
 
         # Pseudo-jump to target to track the app usage
-        command_utils.plugins["aria_jump"].execute("j " + app_target, 3)
+        command_utils.plugins["aria_jump"].execute("j " + target, 3)
+
+    def is_path(self, query: str) -> bool:
+        if current_os == "Windows":
+            if "\\" in query:
+                return True
+        else:
+            if "/" in query:
+                return True
 
     def __cleanse(self, query: str) -> str:
         query = query.replace("\\", "\\\\")
         query = query.replace("\"", "\\\"")
         query = query.replace('\'', '\\\'')
         query = query.replace('\ ', '\\\ ')
+        query = query.replace(" -a", "")
         return query
 
     def __expand_app_ref(self, app_ref):
@@ -168,8 +184,13 @@ class OpenApp(Command):
             elif current_os == "Darwin":
                 self.__open_app_darwin(app, item)
 
-    def open_app() -> None:
-        pass
+    def open_app(self, app: str, item: str = None) -> None:
+        if current_os == "Windows":
+            self.__open_app_windows(app, item)
+        elif current_os == "Linux":
+            self.__open_app_linux(app, item)
+        elif current_os == "Darwin":
+            self.__open_app_darwin(app, item)
 
     # Windows
     def __open_app_windows(self, app: str, file: str = None):
@@ -196,17 +217,23 @@ class OpenApp(Command):
 
     # Linux
     def __open_app_linux(self, app: str, file: str = None):
-        command_utils.plugins["aria_core_terminal"].run_command(["gio", "open", app, file])
+        if file is None:
+            command_utils.plugins["aria_core_terminal"].run_command(["gio", "open", app], shell = False)
+        else:
+            command_utils.plugins["aria_core_terminal"].run_command(["gio", "open", app, file], shell = False)
 
     def __open_file_linux(self, file: str):
         command_utils.plugins["aria_core_terminal"].run_command(["gio", "open", file])
 
     # Darwin
     def __open_app_darwin(self, app: str, file: str = None):
-        command_utils.plugins["aria_core_terminal"].run_command(["open", "-a", app, file])
+        if file is None:
+            command_utils.plugins["aria_core_terminal"].run_command(["open", "-a", app], shell = False)
+        else:
+            command_utils.plugins["aria_core_terminal"].run_command(["open", "-a", app, file], shell = False)
 
     def __open_file_darwin(self, file: str):
-        command_utils.plugins["aria_core_terminal"].run_command(["open", file])
+        status = command_utils.plugins["aria_core_terminal"].run_command(["open", file], shell = False)
 
     def get_template(self, new_cmd_name):
         print("Enter base command and args: ")
