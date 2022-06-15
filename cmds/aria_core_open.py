@@ -58,7 +58,7 @@ class OpenApp(Command):
     def execute(self, query, origin):
         query = self.__cleanse(query)
         query_type = self.get_query_type(query)
-        target = ""
+        target = None
         if query_type in [22, 220, 2200]:
             # Selected Files, query is along the lines of "open these"
             if query_type == 2200:
@@ -66,12 +66,12 @@ class OpenApp(Command):
                 app = query[query.index("in") + 3:]
                 app = self.__expand_app_ref(app)
                 target = app
-                print("Opening", target + "...")
+                io_utils.sprint("Opening...")
 
             selected_items = context_utils.get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                        self.open(item, target)
+                        self.open_item(item, target)
         else:
             parts = shlex.split(query)
             target = self.__expand_app_ref(" ".join(parts[1:]))
@@ -83,7 +83,8 @@ class OpenApp(Command):
                 self.open_app(target)
 
         # Pseudo-jump to target to track the app usage
-        command_utils.plugins["aria_jump"].execute("j " + target, 3)
+        print("j " + target)
+        command_utils.plugins["aria_core_jump"].execute("j " + target, 3)
 
     def is_path(self, query: str) -> bool:
         if current_os == "Windows":
@@ -142,30 +143,6 @@ class OpenApp(Command):
 
         # No match, keep the ref as-is
         return app_ref
-
-    def get_query_type(self, query):
-        parts = query.split()
-        if parts[0] in ["open"]:
-            if ("/") in query:
-                # File path
-                return 11
-
-            # Query contains a direct reference to vscode
-            # TODO: Add 20
-            if "that" in query:
-                # Query is along the lines of "open that in vscode"
-                return 21
-
-            if "this" in query or "these" in query:
-                # Query is along the lines of "open this/these in vscode"
-                if "Finder" in context_utils.previous_apps or "Finder" in context_utils.current_app or current_os != "Darwin":
-                    # Finder is open
-                    if "in" in query:
-                        return 2200
-                    return 220
-                return 22
-            return 10 # App
-        return 0
 
     def open_item(self, item: str, app: str = None) -> None:
         if app is None:
@@ -234,6 +211,31 @@ class OpenApp(Command):
 
     def __open_file_darwin(self, file: str):
         status = command_utils.plugins["aria_core_terminal"].run_command(["open", file], shell = False)
+
+    def get_query_type(self, query):
+        parts = query.split()
+        if parts[0] in ["open"]:
+            if ("/") in query:
+                # File path
+                return 11
+
+            # Query contains a direct reference to vscode
+            # TODO: Add 20
+            if "that" in query:
+                # Query is along the lines of "open that in vscode"
+                return 21
+
+            if "this" in query or "these" in query:
+                # Query is along the lines of "open this/these in vscode"
+                if "Finder" in context_utils.previous_apps or "Finder" in context_utils.current_app or current_os != "Darwin":
+                    # Finder is open
+                    if "in" in query:
+                        print("ok")
+                        return 2200
+                    return 220
+                return 22
+            return 10 # App
+        return 0
 
     def get_template(self, new_cmd_name):
         print("Enter base command and args: ")

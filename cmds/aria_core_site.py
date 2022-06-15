@@ -84,7 +84,7 @@ class Site(Command):
 
     def get_query_type(self, query: str, get_tuple: bool = False) -> Union[int, Tuple[int, Dict[str, Any]]]:
         has_site_specifier = re.search(r'(site|website|url|web)', query) != None
-        has_tld = re.search(r'(.com|.net|.org|.io|.tk|.edu|.gov|.xyz|.nl|.uk|.ca)', query) != None
+        has_tld = re.search(r'(\.com|\.net|\.org|\.io|\.tk|\.edu|\.gov|\.xyz|\.nl|\.uk|\.ca)', query) != None
 
         query_type_map = {
             3000: {
@@ -99,7 +99,7 @@ class Site(Command):
                 "args": [],
             },
 
-            2300: {
+            1000: {
                 "conditions": [has_site_specifier, len(query.split(" ")) > 2],
                 "func": self.open,
                 "args": [],
