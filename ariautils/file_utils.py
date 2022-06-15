@@ -4,7 +4,9 @@
 import os, threading
 from time import sleep
 from pathlib import Path
-from typing import List, Union
+from typing import Any, Callable, List, Union
+
+from . import io_utils
 
 current_file = []
 previous_files = []
@@ -37,37 +39,48 @@ def touch(filepath):
     """
     write(filepath, "", "a")
 
-def watch_file_for_changes(filepath, on_change):
+def watch_file_for_changes(filepath: str, on_change: Callable[..., Any]) -> bool:
     """Initializes a daemon thread that detects changes in the hash of the specified file.
 
     :param filepath: The full path of the file to observe changes in.
     :type filepath: str
     :param on_change: A method to be executed when changes are detected. Must accept the file path as an argument.
-    :type on_change: func(str)
-    :return: None
+    :type on_change: Callable[..., Any]
+    :return: True if watching was successfully initialized for the target file, False if not.
+    :rtype: bool
     """
     id = len(daemons)
-
     watcher_thread = threading.Thread(target=_watch_file_daemon, args=(filepath, id, on_change), name="watcher_" + str(id), daemon=True)
     daemons.append((watcher_thread, True, filepath))
     watcher_thread.start()
 
-def watch_folder_for_changes(folder_path, on_change, watch_files = False):
+    sleep(0.25)
+    if not watcher_thread.is_alive():
+        return False
+    return True
+
+def watch_folder_for_changes(folder_path: str, on_change: Callable[..., Any], watch_files: bool = False) -> bool:
     """Initializes a daemon thread that detect changes in the specified folder's content.
 
     :param folder_path: The full path of the folder to observe changes in.
     :type folder_path: str
     :param on_change: A method to be executed when changes are detected. Must accept the folder path as an argument.
-    :type on_change: func(str)
+    :type on_change: Callable[..., Any]
     :param watch_files: Whether to check for changes in the content of files instead of just the number of files in the folder, defaults to False.
     :type watch_files: bool, optional
-    :return: None
+    :return: True if watching was successfully initialized for the target folder, False if not.
+    :rtype: bool
     """
     id = len(daemons)
 
     watcher_thread = threading.Thread(target=_watch_folder_daemon, args=(folder_path, id, on_change, watch_files), name="watcher_" + str(id), daemon=True)
     daemons.append((watcher_thread, True, folder_path))
     watcher_thread.start()
+
+    sleep(0.01)
+    if not watcher_thread.is_alive():
+        return False
+    return True
 
 def stop_watching(path):
     """Tells the daemon watching for changes to the given path to stop.
@@ -103,11 +116,16 @@ def _watch_file_daemon(filepath, id, on_change):
     """
     old_hash = None
     while daemons[id][1]:
-        file = open(filepath, 'r')
+        file = None
+        try:
+            file = open(filepath, 'r')
+        except FileNotFoundError:
+            io_utils.dprint(f"Could not set up watching daemon for '{filepath}'.")
+            break
         new_hash = hash(file.read())
 
         if old_hash == None:
-            hash = hash(content)
+            old_hash = new_hash
         elif old_hash != new_hash:
             old_hash = new_hash
             on_change(filepath)
