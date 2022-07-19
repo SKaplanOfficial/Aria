@@ -87,13 +87,13 @@ class Site(Command):
         has_tld = re.search(r'(\.com|\.net|\.org|\.io|\.tk|\.edu|\.gov|\.xyz|\.nl|\.uk|\.ca)', query) != None
 
         query_type_map = {
-            3000: {
+            2400: {
                 "conditions": ["open" in query, "http" in query or has_tld],
                 "func": self.open,
                 "args": [],
             },
 
-            2500: {
+            2300: {
                 "conditions": [has_site_specifier, "http" in query or has_tld],
                 "func": self.open,
                 "args": [],

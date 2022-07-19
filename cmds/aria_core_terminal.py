@@ -84,7 +84,6 @@ class TerminalCommand(Command):
         cmd_arr = command
         if isinstance(command, str):
             cmd_arr = shlex.split(command)
-        print(cmd_arr)
         completion_status = subprocess.call(cmd_arr, shell = shell, stdin = stdin, stdout = stdout, stderr = stderr, cwd = cwd, env = env)
         return completion_status
 

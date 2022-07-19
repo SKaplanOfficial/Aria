@@ -30,7 +30,7 @@ class Execute(Command):
             "execute tasks", "run commands",
         ],
         "targets": [
-            "j google", "app calendar", "note today",
+            "j google", "open calendar", "note today & open calculator",
         ],
         "keywords": [
             "aria", "command", "core", "navigation", "shortcut",
