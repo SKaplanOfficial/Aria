@@ -12,7 +12,7 @@ class ExampleCommand(Command):
         "title": "Example Custom Command for Aria",
         "repository": "https://github.com/SKaplanOfficial/Aria",
         "documentation_link": "https://github.com/SKaplanOfficial/Aria",
-        'id': "aria_example_cmd",
+        'id': "aria_example_command",
         "version": "1.0.0",
         "description": """
             This is an example of a custom command class for Aria.
@@ -38,7 +38,7 @@ class ExampleCommand(Command):
         "info_version": "0.9.0",
     }
 
-    def execute(self, query, origin):
+    def execute(self, _query: str, _origin: int):
         print("Testing...")
 
         if "test" in config_utils.get_config().keys():
