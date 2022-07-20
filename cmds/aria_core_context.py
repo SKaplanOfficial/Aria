@@ -17,23 +17,23 @@ from ariautils.tracking_utils import TrackingManager
 
 class CoreContext(command_utils.Command):
     info = {
-        "title": "Run Shortcuts",
+        "title": "Core Context",
         "repository": "https://github.com/SKaplanOfficial/Aria",
         'id': "aria_core_context",
         "version": "1.0.0",
         "description": """
-            This plugin allows users to execute Siri Shortcuts.
+            This plugin tracks context changes as users interact with a macOS system.
         """,
         "requirements": {},
         "extensions": {},
         "purposes": [
-            "run shortcut", "run shortcut with input"
+            "track context",
         ],
         "targets": [
             "shortcut",
         ],
         "keywords": [
-            "aria", "command", "shortcut", "shortcuts.app", "macOS"
+            "aria", "command", "context", "applescript", "pyxa", "automation",
         ],
         "example_usage": [
             ("run shortcut open maps", "Runs the Shortcut titled 'Open Maps'."),
@@ -48,35 +48,37 @@ class CoreContext(command_utils.Command):
         "info_version": "0.9.0",
     }
 
+    looping = True #: Whether the context loop is running
+    current_application = None #: The non-Terminal application that was most recently active
+    current_applications = [] #: A list of currently running applications
+    previous_applications = [] #: A list of the last 10 closed applications
+    previous_input = None #: The previously entered input
+
+    timer = 0
+    seconds_to_checkpoint = 3
+
+    context_tracker = TrackingManager.init_tracker(
+        title="context",
+        item_structure={
+
+            "start_time" : float,
+            "end_time" : float,
+            "frequency" : int,
+            "targets" : list,
+        },
+        data_folder_path="./data"
+    )
+    context_tracker.load_data()
+    current_context = context_tracker.new_item([0, 0, 0, []])
+
+    context_thread = None
+
     def __init__(self):
         super().__init__()
-        self.looping = True #: Whether the context loop is running
-        self.current_application = None #: The non-Terminal application that was most recently active
-        self.current_applications = [] #: A list of currently running applications
-        self.previous_applications = [] #: A list of the last 10 closed applications
-        self.previous_input = None #: The previously entered input
 
-        self.timer = 0
-        self.seconds_to_checkpoint = 3
-
-        self.context_tracker = TrackingManager.init_tracker(
-            title="context",
-            item_structure={
-
-                "start_time" : float,
-                "end_time" : float,
-                "frequency" : int,
-                "targets" : list,
-            },
-            data_folder_path="./data"
-        )
-        self.context_tracker.load_data()
-        self.current_context = self.context_tracker.new_item([0, 0, 0, []])
-
-        context_thread = threading.Thread(target=self.__context_loop, name="Context", daemon=True)
-        context_thread.start()
-
-        print(self.get_selected_items())
+        if CoreContext.context_thread is None:
+            CoreContext.context_thread = threading.Thread(target=self.__context_loop, name="Context", daemon=True)
+            CoreContext.context_thread.start()
 
     def execute(self, query: str, _origin: int) -> None:
         query_type = self.get_query_type(query, True)
@@ -85,55 +87,60 @@ class CoreContext(command_utils.Command):
     def __context_loop(self):
         """Updates the context tracker once a second.
         """
-        while self.looping:
+        while CoreContext.looping:
             self.__update_context()
             sleep(1)
 
     def __update_context(self):
-        current_application = PyXA.current_application().executable_url.path()
-        current_applications = PyXA.running_applications().executable_url()
-        current_applications = [x.path() for x in current_applications]
+        current_applications = PyXA.running_applications()
+
+        current_application = None
+        for x in current_applications:
+            if x.frontmost and x.localized_name != "Terminal":
+                current_application = x
+                break
 
         # Track current application
-        if current_application != "/System/Applications/Utilities/Terminal.app":
-            self.current_application = current_application
+        if current_application != None and current_application.localized_name != "Terminal":
+            CoreContext.current_application = current_application
 
         # Track previous application
-        if len(self.previous_applications) == 0 or self.current_application != self.previous_applications[-1]:
-            self.previous_applications.append(self.current_application)
+        if len(CoreContext.previous_applications) == 0 or CoreContext.current_application != CoreContext.previous_applications[-1]:
+            CoreContext.previous_applications.append(CoreContext.current_application)
 
         # Track running apps
         now = datetime.now()
         current_time = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
-        self.current_context = self.context_tracker.new_item([current_time, current_time, 0, current_applications])
+        current_apps = [x.bundle_url.path() for x in current_applications]
+        CoreContext.current_context = CoreContext.context_tracker.new_item([current_time, current_time, 0, current_apps])
 
         # Initialize history
-        if len(self.context_tracker.items) == 0:
-            self.context_tracker.add_item(self.current_context)
+        if len(CoreContext.context_tracker.items) == 0:
+            CoreContext.context_tracker.add_item(CoreContext.current_context)
 
         # Compare against previous context
-        prev_context_obj = self.context_tracker.items[-1]
-        if prev_context_obj != None and current_applications != prev_context_obj.data["targets"]:
+        prev_context_obj = CoreContext.context_tracker.items[-1]
+        if prev_context_obj != None and current_apps != prev_context_obj.data["targets"]:
             # Record end time of previous context, open new context
             prev_context_obj.data["end_time"] = current_time
-            self.context_tracker.add_item(self.current_context)
+            CoreContext.context_tracker.add_item(CoreContext.current_context)
             self.checkpoint()
         
         # Current and previous are equal at this point
-        elif self.timer == -1 or current_time - self.timer > self.seconds_to_checkpoint:
+        elif CoreContext.timer == -1 or current_time - CoreContext.timer > CoreContext.seconds_to_checkpoint:
             #print("Saving context history...")
             # Update previous end time (in case context doesn't change for a while)
             if prev_context_obj != None:
                 prev_context_obj.data["end_time"] = current_time
 
-            if self.current_context.data["targets"] == self.context_tracker.items[-1].data["targets"]:
-                self.context_tracker.items[-1].data["frequency"] += 1
+            if CoreContext.current_context.data["targets"] == CoreContext.context_tracker.items[-1].data["targets"]:
+                CoreContext.context_tracker.items[-1].data["frequency"] += 1
 
             # Export context history to context tracking csv
-            self.context_tracker.save_data()
+            CoreContext.context_tracker.save_data()
             self.checkpoint()
-            self.context_tracker.load_data()
-
+            CoreContext.context_tracker.load_data()
+                    
     def checkpoint(self):
         """
         Updates the timer checkpoint to the current time.
@@ -143,18 +150,21 @@ class CoreContext(command_utils.Command):
         """
         now = datetime.now()
         current_time = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
-        self.timer = current_time
+        CoreContext.timer = current_time
 
     def blank_context(self):
-        apps_to_close = [app for app in self.current_context.data["targets"]]
+        apps_to_close = [app for app in CoreContext.current_context.data["targets"]]
         for app in apps_to_close:
-            if app != "/Applications/Visual Studio Code.app" and app != "/System/Library/CoreServices/Finder.app" and app != "/System/Applications/Utilities/Terminal.app":
+            if app != "Code" and app != "Finder" and app != "Terminal":
                 print("Closing " + app + "...")
                 command = ["pkill", "-f", app]
                 subprocess.call(command)
 
-    def get_selected_items(self):
-        print(PyXA.application("Finder").selection.url())
+    def get_selected_items(self, app: str = "Finder"):
+        current_selection = PyXA.application(app).selection
+        if not hasattr(CoreContext, "selected_items") or current_selection.xa_elem != CoreContext.selection.xa_elem:
+            CoreContext.selection = current_selection
+        return CoreContext.selection if CoreContext.selection is not None else []
 
     def get_app_list(self):
         home_dir = str(Path.home()) 
@@ -164,21 +174,14 @@ class CoreContext(command_utils.Command):
         return apps
 
     def get_query_type(self, query: str, get_tuple: bool = False) -> Union[int, Tuple[int, Dict[str, Any]]]:
-        shortcut_target = ""
-        input = ""
-        shortcut_name_cmd = re.search(r'(run|execute|exec)( the)? shortcut (named |name |called |titled |title )?', query)
-        has_shortcut_name_cmd = shortcut_name_cmd != None
-        if has_shortcut_name_cmd:
-            shortcut_target = query[shortcut_name_cmd.span()[1]:]
-
         # Define conditions and associated method for each execution pathway
         query_type_map = {
 
-            5000: { # Run shortcut by name - High Confidence
-                "conditions": [has_shortcut_name_cmd],
-                "func": self.run_shortcut,
-                "args": [shortcut_target],
-            },
+            # 1: { # Run shortcut by name - High Confidence
+            #     "conditions": [],
+            #     "func": self.blank_context,
+            #     "args": [],
+            # },
 
         }
 

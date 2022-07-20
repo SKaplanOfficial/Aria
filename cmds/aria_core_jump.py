@@ -185,7 +185,10 @@ class Jump(command_utils.Command):
         if parts[0] in ["j", "goto", "jto"]:
             return 1000
 
-        if "Finder" in command_utils.plugins["aria_core_context"].current_application:
+        current_application = command_utils.plugins["aria_core_context"].current_application
+        localized_name = current_application.localized_name if current_application is not None else ""
+
+        if "Finder" in localized_name:
             return 1
         return 0
 

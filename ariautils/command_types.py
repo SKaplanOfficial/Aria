@@ -53,7 +53,7 @@ class WebAction(Command):
 
         driver.get(base_url)
 
-        names = ["search", "query", "q", "s", "term", "search_query", "searchString"]
+        names = ["search", "query", "q", "s", "term", "search_query", "searchString", "textSearch"]
         selectors = ["input[type='search' i]", "input[placeholder*='search' i]", "input[type='text' i]", "input[aria-label*='search' i]"]
 
         search_url = None
