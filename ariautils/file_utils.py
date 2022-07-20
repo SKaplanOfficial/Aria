@@ -37,7 +37,8 @@ def close_file(file):
 def touch(filepath):
     """Creates an empty file.
     """
-    write(filepath, "", "a")
+    if not os.path.exists(filepath):
+        write(filepath, "", "w")
 
 def watch_file_for_changes(filepath: str, on_change: Callable[..., Any]) -> bool:
     """Initializes a daemon thread that detects changes in the hash of the specified file.

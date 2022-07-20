@@ -6,15 +6,13 @@ A command plugin for Aria that opens files and folders.
 Part of AriaCore in Aria 1.0.0
 """
 
-from numpy import True_
-from ariautils.command_utils import Command
-from ariautils import command_utils, context_utils, io_utils
+from ariautils import command_utils, io_utils
 
 import shlex
 import platform
 current_os = platform.system()
 
-class OpenApp(Command):
+class OpenApp(command_utils.Command):
     info = {
         "title": "Open",
         "repository": "https://github.com/SKaplanOfficial/Aria",
@@ -68,7 +66,7 @@ class OpenApp(Command):
                 target = app
                 io_utils.sprint("Opening...")
 
-            selected_items = context_utils.get_selected_items()
+            selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
             if selected_items != None:
                 for item in selected_items:
                         self.open_item(item, target)
@@ -82,8 +80,9 @@ class OpenApp(Command):
                 io_utils.sprint("Opening application...")
                 self.open_app(target)
 
+        # TODO
         # Pseudo-jump to target to track the app usage
-        print("j " + target)
+        print(target)
         command_utils.plugins["aria_core_jump"].execute("j " + target, 3)
 
     def is_path(self, query: str) -> bool:
@@ -136,7 +135,7 @@ class OpenApp(Command):
         # Partial match to app name
         values = list(ref_map.values())
         if current_os == "Darwin":
-            values.extend(context_utils.get_app_list())
+            values.extend(command_utils.plugins["aria_core_context"].get_app_list())
         for value in values:
             if app_ref in value.lower():
                 return value
@@ -225,9 +224,12 @@ class OpenApp(Command):
                 # Query is along the lines of "open that in vscode"
                 return 21
 
+            current_application = command_utils.plugins["aria_core_context"].current_application
+            localized_name = current_application.localized_name if current_application is not None else ""
+
             if "this" in query or "these" in query:
                 # Query is along the lines of "open this/these in vscode"
-                if "Finder" in context_utils.previous_apps or "Finder" in context_utils.current_app or current_os != "Darwin":
+                if "Finder" in command_utils.plugins["aria_core_context"].previous_applications or "Finder" in localized_name or current_os != "Darwin":
                     # Finder is open
                     if "in" in query:
                         print("ok")

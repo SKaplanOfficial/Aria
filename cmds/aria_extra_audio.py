@@ -459,15 +459,18 @@ class ImgCmd(command_utils.Command):
             },
         }
 
+        current_application = command_utils.plugins["aria_core_context"].current_application
+        localized_name = current_application.localized_name if current_application is not None else ""
+
         for key, query_type in __query_type_map.items():
             if all(query_type["conditions"]):
-                if ("these" in query or "this" in query) and "Finder" in command_utils.plugins["aria_core_context"].current_application:
+                if ("these" in query or "this" in query) and "Finder" in localized_name:
                     key += 10000
-                elif "Finder" in command_utils.plugins["aria_core_context"].current_application and command_utils.plugins["aria_core_context"].get_selected_items() != []:
+                elif "Finder" in localized_name and len(command_utils.plugins["aria_core_context"].get_selected_items()) > 0:
                     key += 5000
-                elif self.check_for_img_target(query) and not "Finder" in command_utils.plugins["aria_core_context"].current_application:
+                elif self.check_for_img_target(query) and not "Finder" in localized_name:
                     key += 1000
-                elif "Finder" in command_utils.plugins["aria_core_context"].current_application and self.check_for_img_target(query):
+                elif "Finder" in localized_name and self.check_for_img_target(query):
                     pass
                 else:
                     # Finder isn't open, no file ref provided --> give this to another command to handle

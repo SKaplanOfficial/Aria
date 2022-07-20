@@ -145,15 +145,18 @@ class OrganizeCommand(command_utils.Command):
         selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
         has_dir_targets = all([Path(item).is_dir() for item in selected_items]) if selected_items is not None else False
 
+        current_application = command_utils.plugins["aria_core_context"].current_application
+        localized_name = current_application.localized_name if current_application is not None else ""
+
         # Define conditions and associated method for each execution pathway
         __query_type_map = {
             100: { # Flatten
-                "conditions": [has_dir_targets, "Finder" in command_utils.plugins["aria_core_context"].current_application, ("these" in query or "this" in query), any_in_str(["flatten", "unnest", "crush", "squash"], query)],
+                "conditions": [has_dir_targets, "Finder" in localized_name, ("these" in query or "this" in query), any_in_str(["flatten", "unnest", "crush", "squash"], query)],
                 "func": self.__flatten,
                 "args": [],
             },
             200: { # Primary command - Organize/Sort
-                "conditions": [has_dir_targets, "Finder" in command_utils.plugins["aria_core_context"].current_application, ("these" in query or "this" in query), any_in_str(["organize", "sort"], query)],
+                "conditions": [has_dir_targets, "Finder" in localized_name, ("these" in query or "this" in query), any_in_str(["organize", "sort"], query)],
                 "func": self.__quick_organize,
                 "args": [],
             },

@@ -8,11 +8,10 @@ def setup(data_path):
     data_folder_path = data_path
     Path(data_folder_path).mkdir(parents = True, exist_ok = True)
 
-def init_tracker(title, item_structure = None, data_folder_path = "./"):
+def init_tracker(title, item_structure = None, data_folder_path = "."):
     """ Create a tracker. """
     data_file_name = title+"_tracking.csv"
     data_file_path = data_folder_path + "/" + data_file_name
-
     if item_structure == None:
         item_structure = {
             "start_time" : float,
@@ -21,19 +20,20 @@ def init_tracker(title, item_structure = None, data_folder_path = "./"):
             "targets" : list
         }
 
-    new_tracker = Tracker(title, data_file_path, item_structure)
+    new_tracker = Tracker(name = title, data_file_path = data_file_path, item_structure = item_structure)
     return new_tracker
 
 def tracker(name = None, data_file_path = None, item_structure = {},
                 data_source = None, allow_duplicate_entries = False,
                 allow_near_duplicates = False, compare_method = None,
-                merge_method = None, use_csv = False):
+                merge_method = None, use_csv = False, data_folder_path = "."):
 
     if (name != None or use_csv == True) and data_file_path == None:
         if name == None:
             now = datetime.now()
             current_time = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
             name = "tracker"+hash(current_time)
+
         data_file_name = name+"_tracking.csv"
         data_file_path = data_folder_path + "/" + data_file_name
 

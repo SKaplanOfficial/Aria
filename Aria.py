@@ -4,7 +4,6 @@ Aria - A modular virtual assistant for the crazy ones.
 Version 0.0.1
 """
 
-from distutils.command.config import config
 import re
 import threading
 import time
@@ -124,6 +123,7 @@ def parse_input(str_in):
         current_phase = AriaPhase.HANDLER_CHECK_PHASE
         handler = None
         max_handler_score = 0
+        handler_score = 0
         if cmd_name == "" or cmd_name is None:
             for (cmd, handler_checker) in command_utils.handler_checkers.items():
                 try:

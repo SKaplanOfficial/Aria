@@ -2,7 +2,7 @@
 """
 
 import importlib, os, re, threading, sys
-from . import command_utils, config_utils, file_utils
+from . import config_utils, file_utils
 
 plugins = dict()
 invocations = dict()
@@ -89,11 +89,7 @@ def check_requirements():
             print("  Found: " + requirement + " @" + plugins[plugin].info["version"] + " instead. Proceed with caution.")
 
 def load_all_commands():
-    """
-    Loads all command modules enabled in aria_config.json.
-
-    Returns:
-        None
+    """Loads all command modules enabled in aria_config.json.
     """
     aria_path = config_utils.get("aria_path")
     cmd_files = file_utils.list_files(aria_path+"/cmds", recursive = True)
@@ -111,18 +107,14 @@ def load_all_commands():
     return num_commands
 
 def check_command_structure(cmd_name, command):
-    """
-    Checks the metadata and method definitions of a command plugin for required and recommended attributes.
+    """Checks the metadata and method definitions of a command plugin for required and recommended attributes.
 
     Parameters:
         cmd_name (str) - The name of the command (currently the filename).
         command (Command) - The Command object exported by the plugin module.
-
-    Returns:
-        None
     """
     info_def = getattr(command, "info", None)
-    if info_def == command_utils.Command.info:
+    if info_def == Command.info:
         print("Warning: Plugin '" + cmd_name + "' does not define its own info dictionary. Proceed with caution.")
 
     required_info_keys = ["title", "id", "version", "description"]
@@ -152,7 +144,7 @@ def check_command_structure(cmd_name, command):
                 print("Warning: Plugin '" + cmd_name + "' does not define either an invocation method nor a '" + method + "' method. At least one should be defined.")
 
     if "info_version" in command.info:
-        if command.info["info_version"] != command_utils.Command.info["info_version"]:
+        if command.info["info_version"] != Command.info["info_version"]:
             print("Warning: Plugin '" + cmd_name + "' uses the Version " + command.info["info_version"] + " command structure, but Aria expected Version " + command_utils.Command.info["info_version"] + ". Proceed with caution.")
     else:
         print("Warning: Could not determine the command structure version of plugin '" + cmd_name + "'. Proceed with caution.")
