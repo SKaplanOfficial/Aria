@@ -5,10 +5,9 @@ from typing import Any, Dict, List, Tuple, Union
 import PyXA
 import re
 
-from ariautils.command_utils import Command
-from ariautils import command_utils, context_utils
+from ariautils import command_utils
 
-class NotesApp(Command):
+class NotesApp(command_utils.Command):
     info = {
         "title": "Notes.app Control",
         "repository": "https://github.com/SKaplanOfficial/Aria",
@@ -111,25 +110,25 @@ class NotesApp(Command):
         # Define conditions and associated method for each execution pathway
         query_type_map = {
             5000: { # New Note - High Confidence
-                "conditions": [("Notes.app" in context_utils.current_app or query.endswith("in notes") or query.endswith("with notes")) and has_create_cmd and "note" in query],
+                "conditions": [("Notes.app" in command_utils.plugins["aria_core_context"].current_application or query.endswith("in notes") or query.endswith("with notes")) and has_create_cmd and "note" in query],
                 "func": self.new_note,
                 "args": [""],
             },
 
             4001: { # Find Note by Name - High Confidence
-                "conditions": [("Notes.app" in context_utils.current_app or "note" in query) and has_find_name_cmd],
+                "conditions": [("Notes.app" in command_utils.plugins["aria_core_context"].current_application or "note" in query) and has_find_name_cmd],
                 "func": self.show_note_with_name,
                 "args": [find_target],
             },
 
             4000: { # Find Note Containing - High Confidence
-                "conditions": [("Notes.app" in context_utils.current_app or "note" in query) and has_find_cmd],
+                "conditions": [("Notes.app" in command_utils.plugins["aria_core_context"].current_application or "note" in query) and has_find_cmd],
                 "func": self.show_note_containing,
                 "args": [find_target],
             },
 
             3000: { # Speak Selected Note - High Confidence
-                "conditions": [("Notes.app" in context_utils.current_app or "note" in query) and "speak" in query and ("selection" in query or "selected" in query)],
+                "conditions": [("Notes.app" in command_utils.plugins["aria_core_context"].current_application or "note" in query) and "speak" in query and ("selection" in query or "selected" in query)],
                 "func": self.speak_selected_notes,
                 "args": [],
             },

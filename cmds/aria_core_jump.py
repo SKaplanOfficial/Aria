@@ -9,14 +9,13 @@ Part of AriaCore in Aria 1.0.0
 import subprocess
 from datetime import datetime
 
-from ariautils import io_utils, context_utils
+from ariautils import io_utils, command_utils
 from ariautils.tracking_utils import TrackingManager
-from ariautils.command_utils import Command
 
 import platform
 current_os = platform.system()
 
-class Jump(Command):
+class Jump(command_utils.Command):
     info = {
         "title": "Jump",
         "repository": "https://github.com/SKaplanOfficial/Aria",
@@ -186,7 +185,7 @@ class Jump(Command):
         if parts[0] in ["j", "goto", "jto"]:
             return 1000
 
-        if "Finder" in context_utils.current_app:
+        if "Finder" in command_utils.plugins["aria_core_context"].current_application:
             return 1
         return 0
 

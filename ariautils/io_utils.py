@@ -14,7 +14,7 @@ if current_os == "Windows":
 else:
     import termios, tty
 
-from . import command_utils, config_utils, lang_utils, context_utils
+from . import command_utils, config_utils, lang_utils
 
 cmd_entered = False # True the instant the user presses Enter after typing a command
 last_entered = "" # The previously entered input
@@ -221,7 +221,7 @@ def detect_typed_input():
 
     if repr(input_key) == CONTROL_C:
         dprint('\nExit')
-        context_utils.looping = False
+        command_utils.plugins["aria_core_context"].looping = False
 
     elif repr(input_key) == ENTER:
         dprint('\nEnter')

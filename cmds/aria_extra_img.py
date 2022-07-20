@@ -1,11 +1,10 @@
 import re
 from PIL import Image, ImageFilter, ImageEnhance, ImageOps, ImageDraw
 
-from ariautils.command_utils import Command
-from ariautils import context_utils, io_utils
+from ariautils import command_utils, io_utils
 from ariautils.misc_utils import any_in_str
 
-class ImgCmd(Command):
+class ImgCmd(command_utils.Command):
     info = {
         "title": "Image Management for Aria",
         "repository": "https://github.com/SKaplanOfficial/Aria-Commands/Aria-Extras",
@@ -53,7 +52,7 @@ class ImgCmd(Command):
 
         if query_type[0] >= 5000:
             # Operate on selected files in Finder
-            selected_items = context_utils.get_selected_items()
+            selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
             if selected_items != None:
                 for item in selected_items:
                     self.__operate_in_place(item, query_type[1]["func"], query_type[1]["args"])
@@ -200,7 +199,7 @@ class ImgCmd(Command):
     def get_query_type(self, query, get_tuple = False):
         parts = query.split()
 
-        selected_items = context_utils.get_selected_items()
+        selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
         has_image_target = self.check_for_img_target(query)
 
         if selected_items != None:
@@ -489,13 +488,13 @@ class ImgCmd(Command):
 
         for key, query_type in __query_type_map.items():
             if all(query_type["conditions"]):
-                if ("these" in query or "this" in query) and "Finder" in context_utils.current_app:
+                if ("these" in query or "this" in query) and "Finder" in command_utils.plugins["aria_core_context"].current_application:
                     key += 10000
-                elif "Finder" in context_utils.current_app and context_utils.get_selected_items() != []:
+                elif "Finder" in command_utils.plugins["aria_core_context"].current_application and command_utils.plugins["aria_core_context"].get_selected_items() != []:
                     key += 5000
-                elif self.check_for_img_target(query) and not "Finder" in context_utils.current_app:
+                elif self.check_for_img_target(query) and not "Finder" in command_utils.plugins["aria_core_context"].current_application:
                     key += 1000
-                elif "Finder" in context_utils.current_app and self.check_for_img_target(query):
+                elif "Finder" in command_utils.plugins["aria_core_context"].current_application and self.check_for_img_target(query):
                     pass
                 else:
                     # Finder isn't open, no file ref provided --> give this to another command to handle

@@ -5,10 +5,9 @@ from typing import Any, Dict, List, Tuple, Union
 import PyXA
 import re
 
-from ariautils.command_utils import Command
-from ariautils import command_utils, context_utils
+from ariautils import command_utils
 
-class ShortcutsApp(Command):
+class ShortcutsApp(command_utils.Command):
     info = {
         "title": "Run Shortcuts",
         "repository": "https://github.com/SKaplanOfficial/Aria",

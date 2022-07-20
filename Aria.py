@@ -24,8 +24,10 @@ try:
 except:
     print("Failed to load Tk. Downgrading to terminal interface.")
 
-from ariautils import command_utils, config_utils, context_utils, io_utils
+from ariautils import command_utils, config_utils, io_utils
 from ariautils.types import InvocationError, AssumedQueryLengthError, AriaPhase, RunningState
+
+from cmds.aria_core_context import core_context
 
 gui = None
 messages = []
@@ -189,7 +191,7 @@ def aria_loop():
     """
     global current_phase
     current_phase = AriaPhase.INPUT_PHASE
-    while context_utils.looping:
+    while core_context.looping:
         try:
             if len(io_utils.query_queue) > 0 and io_utils.query_queue[0].get_exec_time() <= datetime.now():
                 io_utils.query_queue.sort()
@@ -199,16 +201,16 @@ def aria_loop():
                 io_utils.input_buffer = ""
                 
                 if str_in == "context":
-                    print("-"*25, "\n", "Current App: ", context_utils.current_app, "\n\n")
-                    print("Current Context: ", context_utils.current_context.data, "\n\n")
-                    print("Context History: ", context_utils.current_context.data, "\n", "-"*25, "\n\n")
+                    print("-"*25, "\n", "Current App: ", core_context.current_application, "\n\n")
+                    print("Current Context: ", core_context.current_context.data, "\n\n")
+                    print("Context History: ", core_context.current_context.data, "\n", "-"*25, "\n\n")
                 else:
                     query_strings = str_in.split(",")
                     for str in query_strings:
                         new_query = io_utils.Query(str)
                         io_utils.enqueue(new_query)
 
-                context_utils.previous_input = str_in
+                core_context.previous_input = str_in
                 io_utils.last_entered = str_in
                 io_utils.cmd_entered = False
             else:
@@ -234,14 +236,6 @@ def run_query(query: io_utils.Query) -> None:
 
     parse_input(query.get_content())
 
-def context_loop():
-    """Updates the context tracker once a second.
-    """
-    while context_utils.looping:
-        if current_os == "Darwin":
-            context_utils.update_context()
-            time.sleep(1)
-
 
 if __name__ == '__main__':
     if args.cmd is not None:
@@ -255,9 +249,6 @@ if __name__ == '__main__':
         # Run Aria in interactive mode
         io_utils.sprint("Hello, " + config_utils.get("user_name") + "!")
         io_utils.sprint("How can I help?")
-
-        context_thread = threading.Thread(target=context_loop, name="Context", daemon=True)
-        context_thread.start()
 
         aria_thread = threading.Thread(target=aria_loop, name="Aria", daemon=True)
         aria_thread.start()
@@ -279,5 +270,5 @@ if __name__ == '__main__':
 
             gui.mainloop()
         else:
-            while context_utils.looping and aria_thread.is_alive():
+            while core_context.looping and aria_thread.is_alive():
                 pass

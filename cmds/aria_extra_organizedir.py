@@ -1,11 +1,10 @@
 import os
 from pathlib import Path
 
-from ariautils.command_utils import Command
-from ariautils import context_utils, io_utils
+from ariautils import command_utils, io_utils
 from ariautils.misc_utils import any_in_str
 
-class OrganizeCommand(Command):
+class OrganizeCommand(command_utils.Command):
     info = {
         "title": "Directory Organizer",
         "repository": "https://github.com/SKaplanOfficial/Aria-Commands/Aria-Extras",
@@ -60,7 +59,7 @@ class OrganizeCommand(Command):
 
     def execute(self, query, _origin):
         # Get list of selected folders
-        selected_items = context_utils.get_selected_items()
+        selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
         query_type = self.get_query_type(query, get_tuple = True)
 
         if query_type[0] in [100, 200]:
@@ -143,18 +142,18 @@ class OrganizeCommand(Command):
 
     def get_query_type(self, query, get_tuple = False):
         # Check that selected items are directories
-        selected_items = context_utils.get_selected_items()
+        selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
         has_dir_targets = all([Path(item).is_dir() for item in selected_items]) if selected_items is not None else False
 
         # Define conditions and associated method for each execution pathway
         __query_type_map = {
             100: { # Flatten
-                "conditions": [has_dir_targets, "Finder" in context_utils.current_app, ("these" in query or "this" in query), any_in_str(["flatten", "unnest", "crush", "squash"], query)],
+                "conditions": [has_dir_targets, "Finder" in command_utils.plugins["aria_core_context"].current_application, ("these" in query or "this" in query), any_in_str(["flatten", "unnest", "crush", "squash"], query)],
                 "func": self.__flatten,
                 "args": [],
             },
             200: { # Primary command - Organize/Sort
-                "conditions": [has_dir_targets, "Finder" in context_utils.current_app, ("these" in query or "this" in query), any_in_str(["organize", "sort"], query)],
+                "conditions": [has_dir_targets, "Finder" in command_utils.plugins["aria_core_context"].current_application, ("these" in query or "this" in query), any_in_str(["organize", "sort"], query)],
                 "func": self.__quick_organize,
                 "args": [],
             },

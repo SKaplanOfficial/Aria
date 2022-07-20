@@ -9,7 +9,7 @@ Part of AriaCore in Aria 1.0.0
 from datetime import datetime
 from time import sleep
 
-from ariautils import context_utils, io_utils
+from ariautils import io_utils, command_utils
 from ariautils.command_utils import Command
 from ariautils.tracking_utils import TrackingManager
 
@@ -24,7 +24,9 @@ class Execute(Command):
             Executes a set of commands.
             Tracks executions to better infer targets from shorthand notations over time.
         """,
-        "requirements": {},
+        "requirements": {
+            'aria_core_context': '1.0.0',
+        },
         "extensions": {},
         "purposes": [
             "execute tasks", "run commands",
@@ -97,7 +99,7 @@ class Execute(Command):
         exec_tracker.save_data()
 
         if self.force_context:
-            context_utils.blank_context()
+            command_utils.plugins["aria_core_context"].blank_context()
 
         commands = best_candidate.data["targets"].split("|")
         for command in commands:

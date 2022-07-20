@@ -1,13 +1,12 @@
 import re, math
 from moviepy.editor import *
 
-from ariautils.command_utils import Command
-from ariautils import context_utils, io_utils
+from ariautils import command_utils, io_utils
 from ariautils.misc_utils import any_in_str
 
 from .tokenize import command as Tokenize
 
-class VideoCmd(Command):
+class VideoCmd(command_utils.Command):
     info = {
         "title": "Video Management for Aria",
         "repository": "https://github.com/SKaplanOfficial/Aria-Commands/Aria-Extras",
@@ -55,7 +54,7 @@ class VideoCmd(Command):
 
         selected_items = None
         try:
-            selected_items = context_utils.get_selected_items()
+            selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
         except:
             io_utils.dprint("Unable to obtain selected items durign aria_extra_video execution")
 
@@ -235,7 +234,7 @@ class VideoCmd(Command):
     def get_query_type(self, query, get_tuple = False):
         parts = query.split()
 
-        selected_items = context_utils.get_selected_items()
+        selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
         has_video_target = self.check_for_video_target(query)
 
         if selected_items != None:
@@ -423,13 +422,13 @@ class VideoCmd(Command):
 
         for key, query_type in __query_type_map.items():
             if all(query_type["conditions"]):
-                if ("these" in query or "this" in query) and "Finder" in context_utils.current_app:
+                if ("these" in query or "this" in query) and "Finder" in command_utils.plugins["aria_core_context"].current_application:
                     key += 10000
-                elif "Finder" in context_utils.current_app and context_utils.get_selected_items() != []:
+                elif "Finder" in command_utils.plugins["aria_core_context"].current_application and command_utils.plugins["aria_core_context"].get_selected_items() != []:
                     key += 5000
-                elif self.check_for_img_target(query) and not "Finder" in context_utils.current_app:
+                elif self.check_for_img_target(query) and not "Finder" in command_utils.plugins["aria_core_context"].current_application:
                     key += 1000
-                elif "Finder" in context_utils.current_app and self.check_for_img_target(query):
+                elif "Finder" in command_utils.plugins["aria_core_context"].current_application and self.check_for_img_target(query):
                     pass
                 else:
                     # Finder isn't open, no file ref provided --> give this to another command to handle
