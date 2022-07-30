@@ -62,7 +62,7 @@ if __name__ == '__main__':
     num_commands = command_utils.load_all_commands()
     io_utils.dprint("Loaded " + str(num_commands) + " command plugins.")
 
-def parse_input(str_in):
+def parse_input(query):
     """Compares an input string against each intent checker, then runs the best fit command.
 
     Parameters:
@@ -83,28 +83,12 @@ def parse_input(str_in):
     :rtype: string
     :raises: TypeError
     """
-    global current_phase
+    global current_phase, response
     cmd_name = None
 
     # Check meta-commands
-    if str_in == "q":
-        exit()
-    elif str_in == "repeat":
-        io_utils.repeat()
-    elif re.match("(make command )(\w*)( from )(\w*)", str_in) or re.match("(make )(\w*)( from command )(\w*)", str_in):
-        # Make new command based on another command
-        command_utils.cmd_from_template(str_in)
-    elif str_in.startswith("enable plugin "):
-        cmd_name = str_in[14:]
-        command_utils.enable_command_plugin(cmd_name)
-    elif str_in.startswith("disable plugin "):
-        cmd_name = str_in[15:]
-        command_utils.disable_command_plugin(cmd_name)
-    elif str_in.startswith("report "):
-        cmd_name = command_utils.get_command_name(str_in[7:].lower())
-        command_utils.cmd_method(cmd_name, "report")
-    elif str_in.startswith("help "):
-        cmd_name = command_utils.get_command_name(str_in[5:].lower())
+    if isinstance(query.content, str) and query.content.startswith("help "):
+        cmd_name = command_utils.get_command_name(query.content[5:].lower())
         command_utils.cmd_method(cmd_name, "help")
     else:
         # TODO: Extract this into the CommandManager class to avoid repetition
@@ -112,22 +96,23 @@ def parse_input(str_in):
         current_phase = AriaPhase.INVOCATION_PHASE
         for (cmd, invocation_checker) in command_utils.invocations.items():
             try:
-                if invocation_checker(str_in):
+                if invocation_checker(query):
                     cmd_name = cmd
             except IndexError:
-                raise AssumedQueryLengthError(str_in, cmd)
+                raise AssumedQueryLengthError(query.content, cmd)
             except Exception as e:
-                raise InvocationError(str_in, cmd)
+                print(e)
+                raise InvocationError(query, cmd)
 
-        # If no matching filename is found, see if any plugin wants to handle the input
+        # See if any plugin wants to handle the input
         current_phase = AriaPhase.HANDLER_CHECK_PHASE
         handler = None
         max_handler_score = 0
         handler_score = 0
-        if cmd_name == "" or cmd_name is None:
+        if (cmd_name == "" or cmd_name is None):
             for (cmd, handler_checker) in command_utils.handler_checkers.items():
                 try:
-                    handler_score = handler_checker(str_in)
+                    handler_score = handler_checker(query)
                     io_utils.dprint(cmd + " " + str(handler_score))
                 except Exception as e:
                     print(e)
@@ -141,20 +126,17 @@ def parse_input(str_in):
         if handler != None:
             # If a plugin has a handler for this input, run the handler
             current_phase = AriaPhase.HANDLER_PHASE
-            handler(str_in, max_handler_score)
+            response_data = handler(query, max_handler_score)
+            core_context.set_response(io_utils.Response(response_data))
+
         else:
             # Try known files
-            if cmd_name == "" or cmd_name is None:
-                first_word = str_in.split(" ")[0]
+            if isinstance(query.content, str) and (cmd_name == "" or cmd_name is None):
+                first_word = query.content.split(" ")[0]
                 for key in command_utils.plugins.keys():
                     if key.startswith(first_word):
                         cmd_name = key
                         break
-
-            # Try finding new plugin files -- these will probably be disabled
-            if cmd_name == "" or cmd_name is None:
-                first_word = str_in.split(" ")[0]
-                cmd_name = command_utils.get_command_name(first_word.lower())
 
             if cmd_name == "" or cmd_name is None or cmd_name not in command_utils.plugins.keys():
                 # No command found
@@ -172,19 +154,19 @@ def parse_input(str_in):
                     # Occasional Acknowledgement
                     io_utils.sprint("Ok!")
 
-                data = None
                 if config_utils.runtime_config["debug"]:
                     # No error check when debugging -- program will crash on error & display full stacktrace
                     plugin = command_utils.plugins[cmd_name]
-                    data = plugin.execute(str_in, 0)
+                    response_data = plugin.execute(query, 0)
+                    core_context.set_response(io_utils.Response(response_data))
                 else:
                     try:
                         plugin = command_utils.plugins[cmd_name]
-                        plugin.execute(str_in, 0)
+                        response_data = plugin.execute(query, 0)
+                        core_context.set_response(io_utils.Response(response_data))
                     except:
                         pass
-
-                current_phase = AriaPhase.END_PHASE
+        current_phase = AriaPhase.END_PHASE
 
 def aria_loop():
     """Runs the main command input loop.
@@ -234,7 +216,7 @@ def run_query(query: io_utils.Query) -> None:
     if ui_capable and config_utils.get("aria_ui")["enabled"]:
         ttk.Label(frame, text="Ok").pack(pady = 10)
 
-    parse_input(query.get_content())
+    parse_input(query)
 
 
 if __name__ == '__main__':

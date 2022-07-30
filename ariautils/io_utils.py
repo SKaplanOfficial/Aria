@@ -156,6 +156,123 @@ def enqueue(query: Query) -> None:
 def dequeue() -> Query:
     return query_queue.pop(0)
 
+class Response:
+    """Represents a response to a Query.
+    """
+    def __init__(self, content: Any = None, delay: timedelta = None):
+        self.content: Any = content
+        self.creation_time: datetime = datetime.now()
+        self.exec_time: datetime = datetime.now()
+        if delay != None:
+            self.exec_time += delay
+
+    ### Getters
+    def get_content(self) -> Any:
+        return self.content
+
+    def get_creation_time(self) -> datetime:
+        return self.creation_time
+
+    def get_exec_time(self) -> datetime:
+        return self.exec_time
+
+
+    ### Setters
+    def set_content(self, content: Any) -> None:
+        self.content = content
+
+    def set_exec_time(self, exec_time: datetime) -> None:
+        self.exec_time = exec_time
+
+    
+    ### Basic Operations
+    def delay(self, duration: timedelta) -> None:
+        """Delay execution of this query by the specified duration.
+
+        :param duration: The amount of time to delay this query's execution.
+        :type duration: timedelta
+        """
+        self.exec_time += duration
+
+    ### Magic Operations
+    def __add__(self, other: 'Query') -> 'Query':
+        if isinstance(self.content, list):
+            new_content = [x for x in self.content]
+            if isinstance(other.get_content(), list):
+                new_content.extend([x for x in other.get_content])
+            else:
+                new_content.append(other.get_content())
+            return Query(new_content)
+        return Query(self.content + other.get_content())
+
+    def __add__(self, other: Any) -> 'Query':
+        try:
+            return Query(self.content + other)
+        except:
+            if isinstance(self.content, list):
+                new_content = [x for x in self.content]
+                new_content.append(other)
+                return Query(new_content)
+            return Query([x for x in self.content], other)
+
+    def __sub__(self, other: 'Query') -> 'Query':
+        return Query(self.content - other.get_content())
+
+    def __sub__(self, other: Any) -> 'Query':
+        return Query(self.content - other)
+
+    def __mul__(self, other: 'Query') -> 'Query':
+        return Query(self.content * other.get_content())
+
+    def __mul__(self, other: Any) -> 'Query':
+        return Query(self.content * other)
+
+    def __eq__(self, other: 'Query') -> bool:
+        if not isinstance(other, Query):
+            return False
+        return self.content == other.get_content()
+
+    def __lt__(self, other: 'Query') -> bool:
+        if not isinstance(other, Query):
+            return False
+        return self.exec_time < other.exec_time
+
+    def __le__(self, other: 'Query') -> bool:
+        if not isinstance(other, Query):
+            return False
+        return self.exec_time <= other.exec_time
+
+    def __gt__(self, other: 'Query') -> bool:
+        if not isinstance(other, Query):
+            return False
+        return self.exec_time > other.exec_time
+
+    def __ge__(self, other: 'Query') -> bool:
+        if not isinstance(other, Query):
+            return False
+        return self.exec_time >= other.exec_time
+
+    def __contains__(self, item):
+        return item in self.content
+
+    def __getitem__(self, index):
+        return self.content[index]
+
+    def __setitem__(self, index, item):
+        self.content[index] = item
+
+    def __len__(self):
+        return len(self.content)
+
+    def __str__(self) -> str:
+        return str(self.content)
+
+    def __repr__(self) -> str:
+        return str({
+            "content": self.content,
+            "creation_time": self.creation_time,
+        })
+
 def getch():
     fd = sys.stdin.fileno()
     ch = None

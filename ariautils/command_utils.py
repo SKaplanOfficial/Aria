@@ -416,6 +416,9 @@ class Command:
         "version": "", # Required. SemVer is preferred, but not enforced.
         # Description is required, but has no length limit.
         "description": """""",
+        "permissions": [
+            "receive_previous_response",
+        ],
         "requirements": {
             # Optional, but preferred.
             # List of identifiers of other Aria commands needed in order to run this command.
@@ -484,7 +487,7 @@ class Command:
             "email": "",
             "website": "",
         },
-        "info_version": "0.9.0",
+        "info_version": "0.9.1",
     }
 
     def __init__(self):
@@ -548,7 +551,7 @@ class Command:
         :param query_type: A number representing the type of query and level of confidence that it should be handled by this command.
         :type query_type: int
         """
-        self.execute(query, 1)
+        return self.execute(query, 1)
 
     def help(self):
         """Displays instructions for how to use this command. Called when users input 'help [command name]'. This method does not need to be overwritten unless additional information is desired. By default, the help message contains the description of the command, the items in the specified in the 'help' section of the command's info dictionary, and the examples specified in the info dictionary.

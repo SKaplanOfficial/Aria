@@ -80,6 +80,8 @@ class CoreContext(command_utils.Command):
             CoreContext.context_thread = threading.Thread(target=self.__context_loop, name="Context", daemon=True)
             CoreContext.context_thread.start()
 
+            self.__response = None #: The previously returned response object
+
     def execute(self, query: str, _origin: int) -> None:
         query_type = self.get_query_type(query, True)
         query_type[1]["func"](query, query_type[1]["args"])
@@ -159,6 +161,14 @@ class CoreContext(command_utils.Command):
                 print("Closing " + app + "...")
                 command = ["pkill", "-f", app]
                 subprocess.call(command)
+
+    def set_response(self, response):
+        self.__response = response
+
+    def get_response(self, command_id: str, _token = None):
+        permissions = command_utils.plugins[command_id].info.get("permissions")
+        if isinstance(permissions, list) and "retrieve_previous_response" in permissions:
+            return self.__response
 
     def get_selected_items(self, app: str = "Finder"):
         current_selection = PyXA.application(app).selection
