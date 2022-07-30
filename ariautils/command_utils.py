@@ -11,6 +11,46 @@ handler_checkers = dict()
 
 requirements = dict()
 
+def load_commands_from_module(module_name: str) -> int:
+    """Loads all commands from a module.
+
+    :param module_name: The name of the module file to load commands from
+    :type module_name: str
+    :return: The number of commands loaded
+    :rtype: int
+    """
+    module = importlib.import_module("cmds." + module_name)
+    command_objects = getattr(module, "command_exports", None)
+
+    if command_objects == None:
+        print("Error: Couldn't find any command definitions in " + module_name + ".py. No commands were loaded from the module.")
+        return
+
+    for command in command_objects:
+        check_command_structure(command)
+
+        command_id = command.info["id"]
+        plugins[command_id] = command
+        invocations[command_id] = command.invocation
+        handler_checkers[command_id] = command.handler_checker
+        handlers[command_id] = command.handler
+
+        # Add requirements
+        if "requirements" in command.info:
+            requirements.update(command.info["requirements"])
+
+        # Run plugin configuration if necessary
+        if "configure" in vars(command.__class__):
+            command.configure()
+
+        # Preload plugin resources if necessary
+        if "preload" in vars(command.__class__):
+            preload_thread = threading.Thread(target=command.preload, name="preload_" + command_id)
+            preload_thread.start()
+    
+    return len(command_objects)
+
+
 def load_command(cmd_name):
     """Loads a command from a command plugin file.
 
@@ -23,6 +63,8 @@ def load_command(cmd_name):
     command_obj = getattr(module, "command", None)
 
     if command_obj == None:
+        if hasattr(module, "command_exports"):
+            raise NotImplementedError
         print("Error: Couldn't find command definition in " + cmd_name + ".py. Proceed with caution.")
         return
     plugins[cmd_name] = module.command
@@ -30,7 +72,7 @@ def load_command(cmd_name):
     # TODO: Use IDs for all entries, not as a secondary bandaid
     plugins[module.command.info["id"]] = module.command
 
-    check_command_structure(cmd_name, plugins[cmd_name])
+    check_command_structure(module.command)
 
     # Add invocation methods
     invocations[cmd_name] = plugins[cmd_name].invocation
@@ -97,16 +139,19 @@ def load_all_commands():
     for file in cmd_files:
         cmd_name = file.stem
         if cmd_name in config_utils.get("plugins").keys():
-            if config_utils.get("plugins")[cmd_name]:
+            if config_utils.get("plugins")[cmd_name]["enabled"]:
                 try:
                     load_command(cmd_name)
                     num_commands += 1
+                except NotImplementedError:
+                    module_name = cmd_name
+                    num_commands += load_commands_from_module(module_name)
                 except ModuleNotFoundError as e:
                     print(f"Couldn't load command {cmd_name}: module not found! --", e)
     check_requirements()
     return num_commands
 
-def check_command_structure(cmd_name, command):
+def check_command_structure(command):
     """Checks the metadata and method definitions of a command plugin for required and recommended attributes.
 
     Parameters:
@@ -115,7 +160,7 @@ def check_command_structure(cmd_name, command):
     """
     info_def = getattr(command, "info", None)
     if info_def == Command.info:
-        print("Warning: Plugin '" + cmd_name + "' does not define its own info dictionary. Proceed with caution.")
+        print("Warning: Plugin '" + command.info["id"] + "' does not define its own info dictionary. Proceed with caution.")
 
     required_info_keys = ["title", "id", "version", "description"]
     recommended_info_keys = ["repository", "requirements", "purposes", "targets", "example_usage"]
@@ -125,29 +170,29 @@ def check_command_structure(cmd_name, command):
 
     for key in required_info_keys:
         if key not in command.info:
-            print("Error: Plugin '" + cmd_name + "' does not define the required '" + key + "' key. Proceed with caution.")
+            print("Error: Plugin '" + command.info["id"] + "' does not define the required '" + key + "' key. Proceed with caution.")
     
     for key in recommended_info_keys:
         if key not in command.info and (config_utils.get("dev_mode") or config_utils.runtime_config["debug"]):
-            print("Warning: Plugin '" + cmd_name + "' does not define the recommended '" + key + "' key.")
+            print("Warning: Plugin '" + command.info["id"] + "' does not define the recommended '" + key + "' key.")
 
     for method in required_methods:
         method_def = getattr(command, method, None)
         if method_def == None:
-            print("Error: Plugin '" + cmd_name + "' does not define the required '" + method + "' method. Proceed with caution.")
+            print("Error: Plugin '" + command.info["id"] + "' does not define the required '" + method + "' method. Proceed with caution.")
 
     invocation_def = getattr(command, "invocation", None)
     if invocation_def == None:
         for method in recommended_methods:
             method_def = getattr(command, method, None)
             if method_def == None and (config_utils.get("dev_mode") or config_utils.runtime_config["debug"]):
-                print("Warning: Plugin '" + cmd_name + "' does not define either an invocation method nor a '" + method + "' method. At least one should be defined.")
+                print("Warning: Plugin '" + command.info["id"] + "' does not define either an invocation method nor a '" + method + "' method. At least one should be defined.")
 
     if "info_version" in command.info:
         if command.info["info_version"] != Command.info["info_version"]:
-            print("Warning: Plugin '" + cmd_name + "' uses the Version " + command.info["info_version"] + " command structure, but Aria expected Version " + command_utils.Command.info["info_version"] + ". Proceed with caution.")
+            print("Warning: Plugin '" + command.info["id"] + "' uses the Version " + command.info["info_version"] + " command structure, but Aria expected Version " + Command.info["info_version"] + ". Proceed with caution.")
     else:
-        print("Warning: Could not determine the command structure version of plugin '" + cmd_name + "'. Proceed with caution.")
+        print("Warning: Could not determine the command structure version of plugin '" + command.info["id"] + "'. Proceed with caution.")
 
 def cmd_from_template(str_in):
     """
@@ -493,7 +538,7 @@ class Command:
         :return: A number representing the type of query and the level of confidence that it should be handled by this command.
         :rtype: int
         """
-        return self.get_query_type(query)
+        return self.get_query_type(query.content)
 
     def handler(self, query, query_type):
         """Handles a query after it is transferred to this command's control. Calls self.execute() by default. Use this method to adjust the command's flow based on the type of query that is being handled. In combination with self.handler_checker(), this can be used to customize which queries the command responds to and how it responds to them.
