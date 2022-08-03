@@ -41,7 +41,7 @@ class ShortcutsApp(command_utils.Command):
     }
 
     def execute(self, query: str, _origin: int) -> None:
-        query_type = self.get_query_type(query, True)
+        query_type = self.get_query_type(query.content, True)
         query_type[1]["func"](query, query_type[1]["args"])
 
     def run_shortcut(self, _query: str, args: List[Any]):
@@ -93,6 +93,12 @@ class ShortcutsApp(command_utils.Command):
                 "conditions": [has_shortcut_name_cmd],
                 "func": self.run_shortcut,
                 "args": [shortcut_target],
+            },
+
+            100: { # Run shortcut by direct name
+                "conditions": [query in command_utils.plugins["aria_core_context"].data(["shortcuts"]).name()],
+                "func": self.run_shortcut,
+                "args": [query],
             },
 
         }

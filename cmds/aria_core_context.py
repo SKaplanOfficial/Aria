@@ -11,8 +11,11 @@ from datetime import datetime
 from time import sleep
 from typing import Any, Dict, List, Tuple, Union
 
+from numpy import isin
+
 from ariautils import command_utils
 from ariautils.tracking_utils import TrackingManager
+from ariautils.types import InsufficientResourcePermissionError
 
 
 class CoreContext(command_utils.Command):
@@ -54,6 +57,8 @@ class CoreContext(command_utils.Command):
     previous_applications = [] #: A list of the last 10 closed applications
     previous_input = None #: The previously entered input
 
+    system_data = {} #: Date from the user's system
+
     timer = 0
     seconds_to_checkpoint = 3
 
@@ -70,8 +75,9 @@ class CoreContext(command_utils.Command):
     )
     context_tracker.load_data()
     current_context = context_tracker.new_item([0, 0, 0, []])
-
     context_thread = None
+
+    apps = {}
 
     def __init__(self):
         super().__init__()
@@ -79,6 +85,9 @@ class CoreContext(command_utils.Command):
         if CoreContext.context_thread is None:
             CoreContext.context_thread = threading.Thread(target=self.__context_loop, name="Context", daemon=True)
             CoreContext.context_thread.start()
+
+            data_thread = threading.Thread(target=self.__update_system_data, name="Get System Data", daemon=True)
+            data_thread.start()
 
             self.__response = None #: The previously returned response object
 
@@ -142,6 +151,48 @@ class CoreContext(command_utils.Command):
             CoreContext.context_tracker.save_data()
             self.checkpoint()
             CoreContext.context_tracker.load_data()
+
+        self.__update_system_data()
+
+    def app(self, app_name: str) -> PyXA.XABase.XAApplication:
+        if app_name not in CoreContext.apps:
+            CoreContext.apps[app_name] = PyXA.application(app_name)
+        return CoreContext.apps[app_name]
+
+    def data(self, key_path: List[str]) -> Any:
+        current_head = CoreContext.system_data
+        current_value = None
+        for index, key in enumerate(key_path):
+            current_value = current_head.get(key)
+            if isinstance(current_value, dict):
+                current_head = current_value
+            elif index < len(key_path) - 1:
+                raise KeyError
+        return current_value
+
+    def __update_system_data(self):
+        CoreContext.system_data["note_folders"] = self.app("Notes").folders()
+        CoreContext.system_data["shortcut_folders"] = self.app("Shortcuts").folders()
+        CoreContext.system_data["shortcuts"] = self.app("Shortcuts").shortcuts()
+        # CoreContext.system_data["contact_groups"] = self.app("Contacts").groups()
+        # CoreContext.system_data["contacts"] = self.app("Contacts").contacts()
+        CoreContext.system_data["photo_albums"] = self.app("Photos").albums()
+        CoreContext.system_data["photo_folders"] = self.app("Photos").folders()
+        CoreContext.system_data["reminder_lists"] = self.app("Reminders").lists()
+        # CoreContext.system_data["music_playlists"] = self.app("Music").playlists()
+        # CoreContext.system_data["music_tracks"] = self.app("Music").tracks()
+        # CoreContext.system_data["tv_tracks"] = self.app("TV").tracks()
+        # CoreContext.system_data["tv_playlists"] = self.app("TV").playlists()
+        CoreContext.system_data["chats"] = self.app("Messages").chats()
+        CoreContext.system_data["chat_participants"] = self.app("Messages").participants()
+        CoreContext.system_data["reminders"] = self.app("Reminders").reminders()
+        CoreContext.system_data["notes"] = self.app("Notes").notes()
+        # CoreContext.system_data["font_collections"] = self.app("Font Book").font_collections()
+        CoreContext.system_data["font_families"] = self.app("Font Book").font_families()
+        CoreContext.system_data["typefaces"] = self.app("Font Book").typefaces()
+        CoreContext.system_data["saved_stocks"] = self.app("Stocks").saved_stocks()
+        CoreContext.system_data["sidebar_locations"] = self.app("Maps").sidebar_locations()
+        CoreContext.system_data["photos"] = self.app("Photos").media_items()
                     
     def checkpoint(self):
         """
@@ -169,17 +220,17 @@ class CoreContext(command_utils.Command):
         permissions = command_utils.plugins[command_id].info.get("permissions")
         if isinstance(permissions, list) and "retrieve_previous_response" in permissions:
             return self.__response
+        raise InsufficientResourcePermissionError(command_id, "the previous response")
 
     def get_selected_items(self, app: str = "Finder"):
-        current_selection = PyXA.application(app).selection
-        if not hasattr(CoreContext, "selected_items") or current_selection.xa_elem != CoreContext.selection.xa_elem:
-            CoreContext.selection = current_selection
-        return CoreContext.selection if CoreContext.selection is not None else []
+        if not hasattr(CoreContext, "selected_items") or CoreContext.selected_items is None:
+            CoreContext.selected_items = PyXA.application(app).selection
+        return CoreContext.selected_items if CoreContext.selected_items is not None else []
 
     def get_app_list(self):
         home_dir = str(Path.home()) 
         apps = ["/Applications/" + a for a in os.listdir("/Applications")]
-        apps.extend([home_dir + "/" + a for a in os.listdir(home_dir + "/Applications")])
+        apps.extend([home_dir + "/Applications/" + a for a in os.listdir(home_dir + "/Applications")])
         apps = [a for a in apps if a.endswith(".app") and not a.startswith(".")]
         return apps
 
