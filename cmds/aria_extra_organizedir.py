@@ -143,7 +143,8 @@ class OrganizeCommand(command_utils.Command):
     def get_query_type(self, query, get_tuple = False):
         # Check that selected items are directories
         selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
-        has_dir_targets = all([Path(item).is_dir() for item in selected_items]) if selected_items is not None else False
+        has_dir_targets = all([Path(item.url).is_dir() for item in selected_items]) if selected_items is not None else False
+        has_dir_targets = False
 
         current_application = command_utils.plugins["aria_core_context"].current_application
         localized_name = current_application.localized_name if current_application is not None else ""

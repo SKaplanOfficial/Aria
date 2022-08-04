@@ -64,10 +64,14 @@ class ImgCmd(command_utils.Command):
             selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                    self.__operate_in_place(item, query_type[1]["func"], query_type[1]["args"])
+                    self.__operate_in_place(item.url, query_type[1]["func"], query_type[1]["args"])
 
     # I/O
     def __operate_in_place(self, path, operation, args):
+        if path.startswith("file://"):
+            path = path.replace("file://", "")
+        path = path.replace("%20", " ")
+
         audio = None
         if os.path.isdir(path):
             path = path + "/temp.mp3"
@@ -203,7 +207,7 @@ class ImgCmd(command_utils.Command):
         if selected_items != None:
             if not has_audio_target:
                 for item in selected_items:
-                    if self.check_for_audio_target(item):
+                    if self.check_for_audio_target(item.url):
                         has_audio_target = True
                         break
 

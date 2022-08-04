@@ -61,14 +61,14 @@ class VideoCmd(command_utils.Command):
             if selected_items != None:
                 path = selected_items[0]
                 path = path[0:len(path)-path[::-1].index(".")-1] + "_generated.mp4" 
-                self.__new_video_file(path, query_type[1]["func"], [VideoFileClip(item) for item in selected_items])
+                self.__new_video_file(path, query_type[1]["func"], [VideoFileClip(item.url) for item in selected_items])
 
         elif query_type[0] in [5050, 10050]:
             # Audio replacement
             if selected_items != None:
                 audio_file = self.path_from_str(query)
                 for item in selected_items:
-                    self.__operate_in_place(item, query_type[1]["func"], [AudioFileClip(audio_file)])
+                    self.__operate_in_place(item.url, query_type[1]["func"], [AudioFileClip(audio_file)])
             
         elif query_type[0] == 100:
             pass
@@ -90,6 +90,10 @@ class VideoCmd(command_utils.Command):
 
     # I/O
     def __operate_in_place(self, path, operation, args):
+        if path.startswith("file://"):
+            path = path.replace("file://", "")
+        path = path.replace("%20", " ")
+
         video = VideoFileClip(path)
         video = operation(video, *args)
 
@@ -238,7 +242,7 @@ class VideoCmd(command_utils.Command):
         if selected_items != None:
             if not has_video_target:
                 for item in selected_items:
-                    if self.check_for_video_target(item):
+                    if self.check_for_video_target(item.url):
                         has_video_target = True
                         break
 

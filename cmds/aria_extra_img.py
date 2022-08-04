@@ -55,10 +55,14 @@ class ImgCmd(command_utils.Command):
             selected_items = command_utils.plugins["aria_core_context"].get_selected_items()
             if selected_items != None:
                 for item in selected_items:
-                    self.__operate_in_place(item, query_type[1]["func"], query_type[1]["args"])
+                    self.__operate_in_place(item.url, query_type[1]["func"], query_type[1]["args"])
 
     # I/O
     def __operate_in_place(self, path, operation, args):
+        if path.startswith("file://"):
+            path = path.replace("file://", "")
+        path = path.replace("%20", " ")
+        
         img = Image.open(path)
         img = operation(img, *args)
 
@@ -194,7 +198,7 @@ class ImgCmd(command_utils.Command):
         return image
 
     def check_for_img_target(self, string):
-        return any_in_str([".png", ".jpg", ".jpeg", ".tiff", ".webp", ".raw", ".pdf", ".svg", ".heif"], string.lower())
+        return any_in_str([".png", ".jpg", ".jpeg", ".tiff", ".webp", ".raw", ".pdf", ".svg", ".heif", ".heic"], string.lower())
 
     def get_query_type(self, query, get_tuple = False):
         parts = query.split()
@@ -205,7 +209,7 @@ class ImgCmd(command_utils.Command):
         if len(selected_items) > 0:
             if not has_image_target:
                 for item in selected_items:
-                    if self.check_for_img_target(item):
+                    if self.check_for_img_target(item.url):
                         has_image_target = True
                         break
 
@@ -491,7 +495,7 @@ class ImgCmd(command_utils.Command):
 
         for key, query_type in __query_type_map.items():
             if all(query_type["conditions"]):
-                if ("these" in query or "this" in query) and "Finder" in current_application:
+                if ("these" in query or "this" in query) and "Finder" in localized_name:
                     key += 10000
                 elif "Finder" in localized_name and len(command_utils.plugins["aria_core_context"].get_selected_items()) > 0:
                     key += 5000
